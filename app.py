@@ -507,9 +507,6 @@ def get_dashboard_metrics():
                 fee_str = patient.get('monthlyFee', '0') or '0'
                 fee = calculate_prorated_fee(fee_str, days_elapsed)
                 
-                per_day_rate = int(str(patient.get('perDayRate', '0')).replace(',', '') or '0')
-                fee += per_day_rate * days_elapsed
-                
                 # Get canteen total
                 canteen = canteen_map.get(pid, 0)
                 
@@ -656,7 +653,6 @@ def get_patients():
             p['_id'] = patient_id
             # Ensure monthlyFee is present for canteen view logic
             p['monthlyFee'] = p.get('monthlyFee', '0')
-            p['perDayRate'] = p.get('perDayRate', '0')
             p['photo1'] = p.get('photo1', '')
             p['photo2'] = p.get('photo2', '')
             p['photo3'] = p.get('photo3', '')
@@ -681,7 +677,6 @@ def add_patient():
         data['created_at'] = datetime.now()
         data['notes'] = [] # General Notes (Legacy)
         data['monthlyFee'] = data.get('monthlyFee', '0')
-        data['perDayRate'] = data.get('perDayRate', '0')
         data['monthlyAllowance'] = data.get('monthlyAllowance', '3000') # Default allowance
         data['receivedAmount'] = data.get('receivedAmount', '0')  # New field
         data['drug'] = data.get('drug', '')  # New field
@@ -1548,7 +1543,7 @@ def get_accounts_summary():
         # Get all patients - Added 'isDischarged' to projection
         patients = list(mongo.db.patients.find({}, {
             'name': 1, 'fatherName': 1, 'admissionDate': 1, 
-            'monthlyFee': 1, 'perDayRate': 1, 'address': 1, 'age': 1,
+            'monthlyFee': 1, 'address': 1, 'age': 1,
             'laundryStatus': 1, 'laundryAmount': 1, 'receivedAmount': 1,
             'isDischarged': 1
         }))
@@ -1578,12 +1573,9 @@ def get_accounts_summary():
                 except:
                     days_elapsed = 0
             
-            # Get fees and calculate prorated and per day fees
+            # Get fees and calculate prorated fees
             monthly_fee = p.get('monthlyFee', '0')
             calculated_fee = calculate_prorated_fee(monthly_fee, days_elapsed)
-            
-            per_day_rate = int(str(p.get('perDayRate', '0')).replace(',', '') or '0')
-            calculated_fee += per_day_rate * days_elapsed
             
             summary.append({
                 'id': pid,
@@ -2294,7 +2286,18 @@ def add_patient_payment(id):
         )
 
         # 4. Log as an Incoming Expense automatically
-        expense_note = f"Partial payment from {patient.get('name')} via {payment_method}"
+        is_overpayment = False
+        try:
+            # Simple check: if amount is very large, mark it. 
+            # In a full system, we'd calculate prorated fee here too, 
+            # but frontend already warned the user.
+            if amount_paid > 100000: # Example threshold for suspicious amount
+                is_overpayment = True
+        except: pass
+
+        expense_note = f"Payment from {patient.get('name')} via {payment_method}"
+        if is_overpayment: expense_note += " (Large Amount)"
+        
         mongo.db.expenses.insert_one({
             'type': 'incoming',
             'amount': amount_paid,
@@ -2353,9 +2356,6 @@ def generate_discharge_bill(id):
         # Parse financial data and calculate prorated/per-day fee
         monthly_fee_raw = patient.get('monthlyFee', '0')
         monthly_fee = calculate_prorated_fee(monthly_fee_raw, days_elapsed)
-        
-        per_day_rate = int(str(patient.get('perDayRate', '0')).replace(',', '') or '0')
-        monthly_fee += per_day_rate * days_elapsed
         
         laundry_amount = patient.get('laundryAmount', 0) if patient.get('laundryStatus', False) else 0
         received_amount = int(str(patient.get('receivedAmount', '0')).replace(',', '') or '0')
@@ -2789,7 +2789,8 @@ def save_attendance():
 def get_emergency_alerts():
     if not check_db(): return jsonify({"error": "Database error"}), 500
     try:
-        alerts = list(mongo.db.emergency_alerts.find().sort('created_at', -1))
+        # Only return active alerts (where status != 'resolved')
+        alerts = list(mongo.db.emergency_alerts.find({'status': {'$ne': 'resolved'}}).sort('created_at', -1))
         for a in alerts:
             a['_id'] = str(a['_id'])
             # Format: 12 Oct, 04:30 PM
@@ -2812,6 +2813,7 @@ def add_emergency_alert():
             'note': data.get('note', ''),
             'severity': data.get('severity', 'critical'), 
             'added_by': session.get('username', 'Staff'),
+            'status': 'active',
             'created_at': datetime.now()
         }
         mongo.db.emergency_alerts.insert_one(alert)
@@ -2825,8 +2827,12 @@ def add_emergency_alert():
 def delete_emergency_alert(id):
     if not check_db(): return jsonify({"error": "Database error"}), 500
     try:
-        mongo.db.emergency_alerts.delete_one({'_id': ObjectId(id)})
-        return jsonify({"message": "Alert resolved"})
+        # Instead of deleting, mark as resolved
+        mongo.db.emergency_alerts.update_one(
+            {'_id': ObjectId(id)},
+            {'$set': {'status': 'resolved', 'resolved_at': datetime.now(), 'resolved_by': session.get('username', 'Staff')}}
+        )
+        return jsonify({"message": "Alert marked as resolved"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

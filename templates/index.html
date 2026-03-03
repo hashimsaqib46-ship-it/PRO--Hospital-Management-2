@@ -2905,7 +2905,6 @@
         monthlyFee: document.getElementById('new-patient-fee').value || '0',
         monthlyAllowance: document.getElementById('new-patient-allowance').value || '3000',
         receivedAmount: document.getElementById('new-patient-received').value || '0',
-        drug: document.getElementById('new-patient-drug').value || '',
         photo1: document.getElementById('new-patient-photo1-hidden').value || '',
         photo2: document.getElementById('new-patient-photo2-hidden').value || '',
         photo3: document.getElementById('new-patient-photo3-hidden').value || '',
@@ -3220,7 +3219,6 @@
       data.monthlyFee = document.getElementById('det-fee').value;
       data.monthlyAllowance = document.getElementById('det-allowance').value;
       data.receivedAmount = document.getElementById('det-received').value || '0';
-      data.drug = document.getElementById('det-drug').value || '';
 
       // Include laundry data
       const laundryCheckbox = document.getElementById('det-laundry-status');
@@ -5020,6 +5018,38 @@
       if (!selectedDate) {
         showSuccessModal('Please select a receipt date.', true);
         return;
+      }
+
+      // 0. Balance Check (Guardrail)
+      const p = patientsData.find((x) => (x._id || x.id) === patientId);
+      if (p) {
+        const parse = (n) => Number(String(n).replace(/,/g, '')) || 0;
+        const monthlyFee = parse(p.monthlyFee);
+        const received = parse(p.receivedAmount);
+        const canteen = parse(p.canteenSpent || p.canteenTotal || 0);
+        const laundry = p.laundryStatus ? parse(p.laundryAmount) : 0;
+
+        // Calculate days elapsed (same logic as discharge)
+        let admissionDateObj;
+        if (p.admissionDate && p.admissionDate.length === 10) {
+          admissionDateObj = new Date(p.admissionDate + 'T00:00:00');
+        } else {
+          admissionDateObj = p.admissionDate ? new Date(p.admissionDate) : new Date();
+        }
+        const daysDiff = Math.floor((new Date() - admissionDateObj) / (1000 * 60 * 60 * 24));
+        const daysElapsed = daysDiff >= 0 ? daysDiff : 0;
+        const proratedFee = Math.floor((monthlyFee / 30.0) * Math.max(daysElapsed, 1));
+
+        const totalDue = proratedFee + canteen + laundry;
+        const currentBalance = totalDue - received;
+
+        if (amount > currentBalance + 100) {
+          // Allow small margin
+          const confirmed = await showConfirmModal(
+            `The amount (PKR ${amount.toLocaleString()}) exceeds the current balance due (PKR ${currentBalance.toLocaleString()}). Proceed with this advance payment?`
+          );
+          if (!confirmed) return;
+        }
       }
 
       const patientMeta = receiptPatientOptions.find((opt) => opt.id === patientId);
@@ -7260,10 +7290,6 @@
                     <input id="det-allowance" class="financial-input border p-2 rounded"
                       placeholder="Canteen Allowance" />
                   </div>
-                  <div class="flex flex-col md:col-span-2">
-                    <span class="text-xs font-bold text-gray-500 uppercase mb-1">Drug</span>
-                    <input id="det-drug" class="financial-input border p-2 rounded" placeholder="Drug" />
-                  </div>
                   <div class="md:col-span-2">
                     <label
                       class="flex items-center gap-3 p-3 bg-white border border-emerald-200 rounded-lg cursor-pointer">
@@ -8183,12 +8209,6 @@
           </div>
 
 
-          <div class="md:col-span-2">
-            <label class="block text-sm font-semibold text-gray-700 mb-1">Drug</label>
-            <input type="text" id="new-patient-drug"
-              class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="Enter drug name or details" />
-          </div>
 
           <div class="md:col-span-2">
             <div class="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
