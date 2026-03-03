@@ -3333,38 +3333,38 @@
 
           tbody.innerHTML += `
         <tr class="border-b transition ${rowClass}">
-            <td class="px-6 py-4 font-medium whitespace-nowrap sticky left-0 bg-white z-10 border-r shadow-sm">
+            <td class="px-2 py-2 font-medium whitespace-nowrap sticky left-0 bg-white z-10 border-r shadow-sm">
                 ${p.name} ${statusBadge}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">${p.fatherName}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">${p.admissionDate}</td>
+            <td class="px-2 py-2">${p.fatherName}</td>
+            <td class="px-2 py-2 text-sm">${p.admissionDate}</td>
             
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-2 py-2">
                 <div class="font-bold">${formatCurrency(totalBill)}</div>
-                <div class="text-xs opacity-70">
+                <div class="text-[10px] opacity-70 leading-tight">
                     (Fee: ${formatNumber(fee)} + Cant: ${formatNumber(
             canteen
           )} + Lnd: ${formatNumber(laundry)})
                 </div>
             </td>
 
-            <td class="px-6 py-4 font-medium whitespace-nowrap">
+            <td class="px-2 py-2 font-medium">
                 <div class="text-emerald-700 font-bold">${formatCurrency(received)}</div>
-                <hr class="my-1 border-gray-100">
-                <div class="text-[10px] uppercase opacity-60">Advance Total</div>
+                <hr class="my-0.5 border-gray-100">
+                <div class="text-[9px] uppercase opacity-60">Advance Total</div>
             </td>
 
-            <td class="px-6 py-4 whitespace-nowrap ${balanceClass}">
-                ${balanceDue < 0 ? '<span class="text-[10px] uppercase block">Refund</span>' : ''}
+            <td class="px-2 py-2 ${balanceClass}">
+                ${balanceDue < 0 ? '<span class="text-[9px] uppercase block">Refund</span>' : ''}
                 ${formatCurrency(Math.abs(balanceDue))}
             </td>
 
-            <td class="px-6 py-4">  
+            <td class="px-2 py-2">  
                 ${p.isDischarged
-              ? `<button onclick="printDischargeSlip('${p.id}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm border border-gray-300 transition font-semibold">
+              ? `<button onclick="printDischargeSlip('${p.id}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-[11px] border border-gray-300 transition font-semibold">
                         <i class="fas fa-print mr-1"></i> Print Invoice
                        </button>`
-              : `<button onclick="handleDischargeFromTable('${p.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded text-sm shadow-md transition font-semibold">
+              : `<button onclick="handleDischargeFromTable('${p.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded text-[11px] shadow-sm transition font-semibold">
                         <i class="fas fa-sign-out-alt mr-1"></i> Discharge
                        </button>`
             }
@@ -7184,18 +7184,18 @@
       </h2>
       <div class="kpi-card" style="padding: 0; border-color: rgba(16, 185, 129, 0.2)">
         <div class="overflow-x-auto w-full">
-          <table class="min-w-full divide-y divide-emerald-100 overflow-x-auto">
+          <table class="min-w-full divide-y divide-emerald-100 overflow-x-auto" style="font-size: 0.75rem;">
             <thead class="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white">
               <tr>
                 <th
-                  class="px-6 py-3 text-left whitespace-nowrap font-semibold sticky left-0 bg-emerald-600 z-20 shadow-sm">
+                  class="px-2 py-2 text-left whitespace-nowrap font-semibold sticky left-0 bg-emerald-600 z-20 shadow-sm">
                   Patient Name</th>
-                <th class="px-6 py-3 text-left whitespace-nowrap font-semibold">Father Name</th>
-                <th class="px-6 py-3 text-left whitespace-nowrap font-semibold">Admission</th>
-                <th class="px-6 py-3 text-left whitespace-nowrap font-semibold">Total Bill</th>
-                <th class="px-6 py-3 text-left whitespace-nowrap font-semibold">Advance Received</th>
-                <th class="px-6 py-3 text-left whitespace-nowrap font-semibold text-center">Refund / Balance Due</th>
-                <th class="px-6 py-3 text-left whitespace-nowrap font-semibold">Actions</th>
+                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Father Name</th>
+                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Admission</th>
+                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Total Bill</th>
+                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Advance Received</th>
+                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-center">Refund / Balance Due</th>
+                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody id="accounts-table-body" class="divide-y divide-emerald-50"></tbody>
