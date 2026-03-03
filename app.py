@@ -202,14 +202,10 @@ def role_required(roles):
 
 def calculate_prorated_fee(monthly_fee, days_elapsed):
     """
-    Calculate prorated fee based on days elapsed.
-    If days > 90, calculate as (monthly_fee / 30) * days_elapsed.
-    Otherwise, return the flat monthly_fee.
-    
-    This ensures:
-    - First 90 days: Patient pays fixed monthly fee regardless of exact days
-    - After 90 days: Fee is prorated based on actual days stayed
-    - This prevents overcharging for long-term patients
+    Calculate prorated fee based purely on days elapsed.
+    Formula: (monthly_fee / 30) * days_elapsed.
+    This ensures patients are charged fairly per day based on their set monthly fee,
+    calculating properly for both short stays and long stays.
     """
     try:
         # Parse monthly_fee to handle string values with commas
@@ -218,13 +214,8 @@ def calculate_prorated_fee(monthly_fee, days_elapsed):
         else:
             monthly_fee = int(monthly_fee or 0)
         
-        if days_elapsed > 90:
-            # Per-day rate multiplied by actual days elapsed
-            per_day_rate = monthly_fee / 30.0
-            return int(per_day_rate * days_elapsed)
-        else:
-            # Within first 90 days, use flat monthly fee
-            return monthly_fee
+        per_day_rate = monthly_fee / 30.0
+        return int(per_day_rate * max(days_elapsed, 1))  # At least 1 day charge
     except (ValueError, TypeError):
         return 0
 
@@ -721,16 +712,7 @@ def update_patient(id):
         data = clean_input_data(request.json)
         if '_id' in data: del data['_id']
         
-        # Only Admin can modify sensitive/financial fields
-        current_role = session.get('role')
-        if current_role != 'Admin':
-            # Remove sensitive fields for non-admin users
-            sensitive_fields = ['monthlyFee', 'perDayRate', 'monthlyAllowance', 'laundryStatus', 
-                              'laundryAmount', 'cnic', 'contactNo', 'guardianName', 
-                              'relation', 'address']
-            for field in sensitive_fields:
-                if field in data:
-                    del data[field]
+        # Allow all users to update all fields. (Restrictions removed as per user request)
         
         mongo.db.patients.update_one({'_id': ObjectId(id)}, {'$set': data})
         return jsonify({"message": "Updated"})

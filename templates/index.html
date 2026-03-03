@@ -1218,6 +1218,120 @@
       color: #9ca3af !important;
     }
 
+    /* --- PATIENTS DIRECTORY COMPACT TABLE FIT --- */
+    #patients-view .kpi-card {
+      overflow-x: hidden !important;
+    }
+
+    #patients-view table {
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    /* Serial No */
+    #patients-table-headers th:nth-child(1),
+    #patients-table-body td:nth-child(1) {
+      width: 80px;
+      min-width: 70px;
+    }
+
+    /* Name */
+    #patients-table-headers th:nth-child(2),
+    #patients-table-body td:nth-child(2) {
+      width: 10%;
+      min-width: 70px;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    /* Father Name */
+    #patients-table-headers th:nth-child(3),
+    #patients-table-body td:nth-child(3) {
+      width: 10%;
+      min-width: 70px;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    /* Admission Date */
+    #patients-table-headers th:nth-child(4),
+    #patients-table-body td:nth-child(4) {
+      width: 80px;
+      min-width: 70px;
+      white-space: nowrap;
+    }
+
+    /* Contact */
+    #patients-table-headers th:nth-child(5),
+    #patients-table-body td:nth-child(5) {
+      width: 80px;
+      min-width: 70px;
+      white-space: nowrap;
+    }
+
+    /* Area */
+    #patients-table-headers th:nth-child(6),
+    #patients-table-body td:nth-child(6) {
+      width: 7%;
+      min-width: 50px;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    /* Monthly Fee (admin) */
+    #patients-table-headers th:nth-child(7),
+    #patients-table-body td:nth-child(7) {
+      width: 7%;
+      min-width: 60px;
+      white-space: nowrap;
+    }
+
+    /* Days Done */
+    #patients-table-headers th:nth-child(8),
+    #patients-table-body td:nth-child(8) {
+      width: 55px;
+      min-width: 50px;
+      white-space: nowrap;
+    }
+
+    /* Months Done */
+    #patients-table-headers th:nth-child(9),
+    #patients-table-body td:nth-child(9) {
+      width: 6%;
+      min-width: 55px;
+      white-space: nowrap;
+    }
+
+    /* Total Charges (admin) */
+    #patients-table-headers th:nth-child(10),
+    #patients-table-body td:nth-child(10) {
+      width: 8%;
+      min-width: 70px;
+      white-space: nowrap;
+    }
+
+    /* Received (admin) */
+    #patients-table-headers th:nth-child(11),
+    #patients-table-body td:nth-child(11) {
+      width: 8%;
+      min-width: 70px;
+      white-space: nowrap;
+    }
+
+    /* Pending (admin) */
+    #patients-table-headers th:nth-child(12),
+    #patients-table-body td:nth-child(12) {
+      width: 9%;
+      min-width: 80px;
+    }
+
+    /* Actions */
+    #patients-table-headers th:last-child,
+    #patients-table-body td:last-child {
+      width: 80px;
+      min-width: 70px;
+    }
+
     /* --- FIX FOR CANTEEN TABLE DISCHARGED ROWS --- */
     #canteen-breakdown-body tr.discharged-row,
     #canteen-breakdown-body tr.discharged-row:nth-child(even),
@@ -2679,36 +2793,40 @@
         const daysDiff = Math.floor((today - admissionDate) / (1000 * 60 * 60 * 24));
         const daysElapsed = daysDiff >= 0 ? daysDiff : 0;
 
-        // Calculate prorated fee based on days elapsed
+        // Calculate Fee based purely on Prorated Monthly (Monthly / 30 * Days)
         const monthlyFeeRaw = parseInt(String(p.monthlyFee || '0').replace(/,/g, ''), 10) || 0;
-        const perDayRateRaw = parseInt(String(p.perDayRate || '0').replace(/,/g, ''), 10) || 0;
-        let feeValue;
-        if (daysElapsed > 90) {
-          // Per-day rate multiplied by actual days elapsed
-          const perDayRateFixed = monthlyFeeRaw / 30.0;
-          feeValue = Math.floor(perDayRateFixed * daysElapsed);
-        } else {
-          // Within first 90 days, use flat monthly fee
-          feeValue = monthlyFeeRaw;
-        }
 
-        feeValue += (perDayRateRaw * daysElapsed);
+        // Unified rule: Monthly Fee / 30 * Days Elapsed
+        const dailyFraction = monthlyFeeRaw / 30.0;
+        const calculatedFee = Math.floor(dailyFraction * Math.max(daysElapsed, 1)); // At least 1 day charge
 
-        const fee = formatCurrency(feeValue);
-        const perDayValue = Math.floor(monthlyFeeRaw / 30);
-        const perDay = formatCurrency(perDayValue);
-
-        const receivedValue =
-          parseInt(String(p.receivedAmount || '0').replace(/,/g, ''), 10) || 0;
+        // 2. Received Amount
+        const receivedValue = parseInt(String(p.receivedAmount || '0').replace(/,/g, ''), 10) || 0;
         const receivedAmount = formatCurrency(receivedValue);
+
+        // 3. Format base amounts for UI
+        const fee = formatCurrency(monthlyFeeRaw);
+
+        // 4. Total Charges & Total Pending Amount
         const canteenSpentValue = p.canteenSpent || 0;
         const laundryValue = p.laundryStatus ? (p.laundryAmount || 0) : 0;
 
-        const totalChargesValue = feeValue + canteenSpentValue + laundryValue;
+        const totalChargesValue = calculatedFee + canteenSpentValue + laundryValue;
         const totalCharges = formatCurrency(totalChargesValue);
 
         const pendingValue = totalChargesValue - receivedValue;
-        const pendingAmount = formatCurrency(pendingValue);
+
+        let pendingAmountText = formatCurrency(Math.abs(pendingValue));
+        let pendingAmountStyle = '';
+        if (pendingValue < 0) {
+          pendingAmountText += ' (Refund)';
+          pendingAmountStyle = 'text-green-700 bg-green-50 px-2 py-1 rounded inline-block';
+        } else if (pendingValue > 0) {
+          pendingAmountText += ' (Due)';
+          pendingAmountStyle = 'text-red-600 bg-red-50 px-2 py-1 rounded inline-block';
+        } else {
+          pendingAmountStyle = 'text-gray-600';
+        }
         const areaDisplay = p.area || p.address || '-';
         const drugDisplay = p.drug || '-';
 
@@ -2744,54 +2862,42 @@
           'Nov',
           'Dec',
         ];
-        const serialNo = `${monthNames[admissionDate.getMonth()]
-          }${admissionDate.getFullYear()}-${String(index + 1).padStart(3, '0')}`;
+        const serialNo = `#${String(index + 1).padStart(3, '0')}`;
 
         // Format admission date
         const formattedAdmissionDate = `${monthNames[admissionDate.getMonth()]
           } ${admissionDate.getDate()} ${admissionDate.getFullYear()}`;
 
         // Format days progress as "X/90" and months as "X months"
-        const targetDays = 90;
-        const daysProgress = `${daysElapsed}/${targetDays}`;
+        const daysProgress = `${daysElapsed} days`;
 
         const totalMonths = Math.floor(daysElapsed / 30);
         const monthsProgress = totalMonths === 1 ? '1 month' : `${totalMonths} months`;
 
         if (isAdmin) {
-          tr.innerHTML = `<td class="px-2 py-2 font-medium text-gray-700 whitespace-nowrap text-xs">${serialNo}</td>
-                            <td class="px-2 py-2 font-medium whitespace-nowrap">${p.name || '-'
-            }</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${p.fatherName || '-'
-            }</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap text-xs">${formattedAdmissionDate}</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${p.contactNo || '-'
-            }</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${areaDisplay}</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${drugDisplay}</td>
-                            <td class="px-2 py-2 font-semibold text-green-700 whitespace-nowrap">${fee}</td>
-                            <td class="px-2 py-2 text-green-600 whitespace-nowrap text-xs">${perDay}</td>
-                            <td class="px-2 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${daysProgress}</td>
-                            <td class="px-2 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${monthsProgress}</td>
-                            <td class="px-2 py-2 font-bold text-emerald-800 whitespace-nowrap">${totalCharges}</td>
-                            <td class="px-2 py-2 font-semibold text-blue-700 whitespace-nowrap">${receivedAmount}</td>
-                            <td class="px-2 py-2 font-semibold ${pendingValue > 0 ? 'text-red-600' : 'text-green-700'
-            } whitespace-nowrap">${pendingAmount}</td>
-                            <td class="px-2 py-2 text-right">${actionControls}</td>`;
+          tr.innerHTML = `<td class="px-1 py-2 font-medium text-gray-700 whitespace-nowrap text-xs">${serialNo}</td>
+                            <td class="px-1 py-2 font-medium">${p.name || '-'}</td>
+                            <td class="px-1 py-2 text-gray-600">${p.fatherName || '-'}</td>
+                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap text-xs">${formattedAdmissionDate}</td>
+                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${p.contactNo || '-'}</td>
+                            <td class="px-1 py-2 text-gray-600">${areaDisplay}</td>
+                            <td class="px-1 py-2 whitespace-nowrap text-xs font-medium text-gray-900">${fee}</td>
+                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${daysProgress}</td>
+                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${monthsProgress}</td>
+                            <td class="px-1 py-2 font-bold text-emerald-800 whitespace-nowrap">${totalCharges}</td>
+                            <td class="px-1 py-2 font-semibold text-blue-700 whitespace-nowrap">${receivedAmount}</td>
+                            <td class="px-1 py-2"><span class="${pendingAmountStyle} font-semibold text-xs">${pendingAmountText}</span></td>
+                            <td class="px-1 py-2 text-right">${actionControls}</td>`;
         } else {
-          tr.innerHTML = `<td class="px-2 py-2 font-medium text-gray-700 whitespace-nowrap text-xs">${serialNo}</td>
-                            <td class="px-2 py-2 font-medium whitespace-nowrap">${p.name || '-'
-            }</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${p.fatherName || '-'
-            }</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap text-xs">${formattedAdmissionDate}</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${p.contactNo || '-'
-            }</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${areaDisplay}</td>
-                            <td class="px-2 py-2 text-gray-600 whitespace-nowrap">${drugDisplay}</td>
-                            <td class="px-2 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${daysProgress}</td>
-                            <td class="px-2 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${monthsProgress}</td>
-                            <td class="px-2 py-2 text-right">${actionControls}</td>`;
+          tr.innerHTML = `<td class="px-1 py-2 font-medium text-gray-700 whitespace-nowrap text-xs">${serialNo}</td>
+                            <td class="px-1 py-2 font-medium">${p.name || '-'}</td>
+                            <td class="px-1 py-2 text-gray-600">${p.fatherName || '-'}</td>
+                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap text-xs">${formattedAdmissionDate}</td>
+                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${p.contactNo || '-'}</td>
+                            <td class="px-1 py-2 text-gray-600">${areaDisplay}</td>
+                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${daysProgress}</td>
+                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${monthsProgress}</td>
+                            <td class="px-1 py-2 text-right">${actionControls}</td>`;
         }
         tbody.appendChild(tr);
       });
@@ -2888,7 +2994,6 @@
         address: document.getElementById('new-patient-address').value,
         area: document.getElementById('new-patient-area').value || '',
         monthlyFee: document.getElementById('new-patient-fee').value || '0',
-        perDayRate: document.getElementById('new-patient-per-day-rate').value || '0',
         monthlyAllowance: document.getElementById('new-patient-allowance').value || '3000',
         receivedAmount: document.getElementById('new-patient-received').value || '0',
         drug: document.getElementById('new-patient-drug').value || '',
@@ -3053,7 +3158,6 @@
       setVal('det-drug', p.drug);
       setVal('det-prev', p.prevAdmissions);
       setVal('det-fee', p.monthlyFee);
-      setVal('det-per-day-rate', p.perDayRate);
       setVal('det-allowance', p.monthlyAllowance);
       setVal('det-received', p.receivedAmount);
       setVal('det-photo1', p.photo1);
@@ -3119,24 +3223,16 @@
       sensitiveFields.forEach((fieldId) => {
         const field = document.getElementById(fieldId);
         if (field) {
-          if (isAdmin) {
-            field.disabled = false;
-            field.style.display = '';
-          } else {
-            field.disabled = true;
-            field.style.opacity = '0.6';
-          }
+          field.disabled = false;
+          field.style.display = '';
+          field.style.opacity = '1';
         }
       });
 
       financialFields.forEach((field) => {
-        if (isAdmin) {
-          field.disabled = false;
-          field.style.display = '';
-        } else {
-          field.disabled = true;
-          field.style.opacity = '0.6';
-        }
+        field.disabled = false;
+        field.style.display = '';
+        field.style.opacity = '1';
       });
 
       if (financialSection) {
@@ -3212,18 +3308,15 @@
         photo2: document.getElementById('det-photo2-hidden').value,
         photo3: document.getElementById('det-photo3-hidden').value,
       };
-      if (currentUser.role === 'Admin') {
-        data.monthlyFee = document.getElementById('det-fee').value;
-        data.perDayRate = document.getElementById('det-per-day-rate').value || '0';
-        data.monthlyAllowance = document.getElementById('det-allowance').value;
-        data.receivedAmount = document.getElementById('det-received').value || '0';
-        data.drug = document.getElementById('det-drug').value || '';
+      data.monthlyFee = document.getElementById('det-fee').value;
+      data.monthlyAllowance = document.getElementById('det-allowance').value;
+      data.receivedAmount = document.getElementById('det-received').value || '0';
+      data.drug = document.getElementById('det-drug').value || '';
 
-        // Include laundry data
-        const laundryCheckbox = document.getElementById('det-laundry-status');
-        data.laundryStatus = laundryCheckbox ? laundryCheckbox.checked : false;
-        data.laundryAmount = document.getElementById('det-laundry-amount').value || '0';
-      }
+      // Include laundry data
+      const laundryCheckbox = document.getElementById('det-laundry-status');
+      data.laundryStatus = laundryCheckbox ? laundryCheckbox.checked : false;
+      data.laundryAmount = document.getElementById('det-laundry-amount').value || '0';
       await fetch(`/api/patients/${currentPatientId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -3411,9 +3504,25 @@
       document.getElementById('ds-admission').innerText = p.admissionDate || '-';
       document.getElementById('ds-cnic').innerText = p.cnic || '-';
 
-      // 5. Calculate Charges
-      // Use calculatedFee if available (prorated), otherwise use monthlyFee
-      const fee = parse(p.calculatedFee || p.monthlyFee);
+      // 5. Calculate Charges based purely on Prorated Monthly
+      const monthlyFeeRaw = parse(p.monthlyFee);
+
+      let calculatedFee = 0;
+      let admissionDateObj;
+      if (p.admissionDate && p.admissionDate.length === 10) {
+        admissionDateObj = new Date(p.admissionDate + 'T00:00:00');
+      } else {
+        admissionDateObj = p.admissionDate ? new Date(p.admissionDate) : new Date();
+      }
+
+      const today = new Date();
+      const daysDiff = Math.floor((today - admissionDateObj) / (1000 * 60 * 60 * 24));
+      const daysElapsed = daysDiff >= 0 ? daysDiff : 0;
+
+      const dailyFraction = monthlyFeeRaw / 30.0;
+      calculatedFee = Math.floor(dailyFraction * Math.max(daysElapsed, 1));
+
+      const fee = calculatedFee;
       const laundry = parse(p.laundryAmount);
       const canteen = parse(p.canteenTotal);
       const gross = fee + laundry + canteen;
@@ -7117,53 +7226,26 @@
           </button>
         </div>
       </div>
-      <div class="kpi-card overflow-x-auto" style="padding: 0; border-color: rgba(16, 185, 129, 0.2)">
-        <table class="min-w-full divide-y divide-emerald-100" style="font-size: 0.875rem">
+      <div class="kpi-card" style="padding: 0; border-color: rgba(16, 185, 129, 0.2); overflow: hidden;">
+        <table class="w-full divide-y divide-emerald-100" style="font-size: 0.72rem;">
           <thead class="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white">
             <tr id="patients-table-headers">
-              <th class="px-3 py-2 text-left whitespace-nowrap font-semibold text-xs">
-                Serial No
-              </th>
-              <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs">Name</th>
-              <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs">
-                Father Name
-              </th>
-              <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs">
-                Admission Date
-              </th>
-              <th id="header-contact" class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs">
-                Contact
-              </th>
-              <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs">Area</th>
-              <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs">Drug</th>
-              <th id="header-fee" class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs admin-only-column">
-                Fee
-              </th>
-              <th id="header-per-day"
-                class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs admin-only-column">
-                Per Day
-              </th>
-              <th class="px-2 py-2 text-center whitespace-nowrap font-semibold text-xs">
-                Days Done
-              </th>
-              <th class="px-2 py-2 text-center whitespace-nowrap font-semibold text-xs">
-                Months Done
-              </th>
+              <th class="px-2 py-2 text-left font-semibold text-xs">Serial No</th>
+              <th class="px-2 py-2 text-left font-semibold text-xs">Name</th>
+              <th class="px-2 py-2 text-left font-semibold text-xs">Father</th>
+              <th class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Admission</th>
+              <th id="header-contact" class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Contact</th>
+              <th class="px-2 py-2 text-left font-semibold text-xs">Area</th>
+              <th id="header-fee" class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">
+                Fee/Mo</th>
+              <th class="px-2 py-2 text-center font-semibold text-xs whitespace-nowrap">Days</th>
+              <th class="px-2 py-2 text-center font-semibold text-xs whitespace-nowrap">Months</th>
               <th id="header-total-charges"
-                class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs admin-only-column">
-                Total Charges
-              </th>
+                class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">Total</th>
               <th id="header-received"
-                class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs admin-only-column">
-                Received Amt
-              </th>
-              <th id="header-pending"
-                class="px-2 py-2 text-left whitespace-nowrap font-semibold text-xs admin-only-column">
-                Pending Amt
-              </th>
-              <th class="px-2 py-2 text-right whitespace-nowrap font-semibold text-xs">
-                Actions
-              </th>
+                class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">Received</th>
+              <th id="header-pending" class="px-2 py-2 text-left font-semibold text-xs admin-only-column">Pending</th>
+              <th class="px-2 py-2 text-right font-semibold text-xs">Actions</th>
             </tr>
           </thead>
           <tbody id="patients-table-body" class="divide-y divide-emerald-50"></tbody>
@@ -7249,12 +7331,6 @@
                   <div class="flex flex-col">
                     <span class="text-xs font-bold text-gray-500 uppercase mb-1">Monthly Fee</span>
                     <input id="det-fee" class="financial-input border p-2 rounded" placeholder="Monthly Fee" />
-                  </div>
-                  <div class="flex flex-col">
-                    <span class="text-xs font-bold text-gray-500 uppercase mb-1"
-                      title="Optional daily accumulating charge">Per Day Rate</span>
-                    <input id="det-per-day-rate" class="financial-input border p-2 rounded"
-                      placeholder="Per Day Rate" />
                   </div>
                   <div class="flex flex-col">
                     <span class="text-xs font-bold text-gray-500 uppercase mb-1">Received Amount (~Advance)</span>
@@ -8164,14 +8240,6 @@
           </div>
 
           <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1" title="Optional auto-accumulating charge">Per
-              Day Rate</label>
-            <input type="number" id="new-patient-per-day-rate"
-              class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              placeholder="0" value="0" />
-          </div>
-
-          <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1" title="Advance Received Payment">Received
               Amount (Advance)</label>
             <input type="number" id="new-patient-received"
@@ -8192,7 +8260,6 @@
               class="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="3000" value="3000" />
           </div>
-
 
 
           <div class="md:col-span-2">
