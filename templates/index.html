@@ -1220,6 +1220,29 @@
       color: #9ca3af !important;
     }
 
+    /* Dim discharged row content but keep actions readable */
+    #patients-table-body tr.discharged-row td:not(:last-child),
+    #accounts-table-body tr.discharged-row td:not(:last-child) {
+      opacity: 0.45;
+    }
+
+    #patients-table-body tr.discharged-row td:last-child,
+    #accounts-table-body tr.discharged-row td:last-child {
+      opacity: 1;
+    }
+
+    /* Keep action buttons high-contrast even in discharged rows */
+    #patients-table-body tr.discharged-row td button,
+    #accounts-table-body tr.discharged-row td button {
+      opacity: 1 !important;
+      filter: none !important;
+    }
+
+    #patients-table-body tr.discharged-row td button.text-white,
+    #accounts-table-body tr.discharged-row td button.text-white {
+      color: #ffffff !important;
+    }
+
     /* --- PATIENTS DIRECTORY SCROLLABLE TABLE --- */
     #patients-view .kpi-card {
       overflow: visible !important;
@@ -1721,6 +1744,8 @@
         else el.classList.remove('bg-gray-100', 'cursor-not-allowed');
       });
     }
+
+    window.addEventListener('load', initApp);
 
     function toggleSidebar() {
       const sidebar = document.getElementById('main-sidebar');
@@ -2630,6 +2655,30 @@
       renderPatientsTable(patientsData);
     };
 
+    function getRecordIds(record) {
+      if (!record || typeof record !== 'object') return [];
+      return [
+        record._id,
+        record.id,
+        record.patientId,
+        record.patient_id,
+        record.patient?.id,
+        record.patient?._id,
+      ]
+        .filter(Boolean)
+        .map((v) => String(v));
+    }
+
+    function resolvePatientId(anyId) {
+      if (!anyId) return null;
+      const key = String(anyId);
+      const inPatients = (patientsData || []).find((p) => getRecordIds(p).includes(key));
+      if (inPatients) return inPatients._id || inPatients.id || inPatients.patientId || inPatients.patient_id;
+      const inAccounts = (accountsData || []).find((p) => getRecordIds(p).includes(key));
+      if (inAccounts) return inAccounts.patientId || inAccounts.patient_id || inAccounts._id || inAccounts.id;
+      return anyId;
+    }
+
     function renderPatientsTable(list) {
       const tbody = document.getElementById('patients-table-body');
       tbody.innerHTML = '';
@@ -2649,7 +2698,7 @@
         const emptyMessage = normalizedSearch
           ? 'No patients match your search.'
           : 'No records found.';
-        const colspanCount = isAdmin ? 15 : 10;
+        const colspanCount = isAdmin ? 16 : 11;
         tbody.innerHTML = `
             <tr>
               <td colspan="${colspanCount}" class="p-6 text-center text-gray-400">${emptyMessage}</td>
@@ -2673,156 +2722,143 @@
 
       const orderedPatients = [...activePatients, ...dischargedPatients];
 
+      let totalRecords = orderedPatients.length;
+      let activeCount = activePatients.length;
+      let dischargedCount = dischargedPatients.length;
+      let totalCollection_val = 0;
+
       orderedPatients.forEach(({ p, pid }, index) => {
         const id = pid;
         const isDischarged = dischargedPatientIds.has(id) || p.isDischarged;
-        const tr = document.createElement('tr');
 
-        // --- NEW CLASS LOGIC ---
-        // If discharged, add 'discharged-row'. If active, add standard hover classes.
-        tr.className = isDischarged
-          ? 'discharged-row border-b cursor-pointer transition'
-          : 'hover:bg-gray-50 border-b cursor-pointer transition';
+        // Active rows keep strong contrast; discharged rows are dimmed.
+        const rowContrastClass = isDischarged ? 'bg-gray-50' : '';
+        const textClass = 'text-gray-900';
+        const subTextClass = 'text-gray-500';
+        const valueClass = 'text-gray-900';
 
-        tr.onclick = (e) => {
-          if (e.target.closest('.action-btn')) return;
-          showPatientDetail(id);
-        };
-
-        const isAdmin = currentUser.role === 'Admin';
-
-        const name = p.name || 'Unknown Patient';
+        // 2. PARSE VALUES
+        const monthlyFeeRaw = parseInt(String(p.monthlyFee || '0').replace(/,/g, ''), 10) || 0;
         const admissionStr = p.admissionDate || p.created_at || '';
-        let admissionDate;
-        if (admissionStr && admissionStr.length === 10) {
-          admissionDate = new Date(admissionStr + 'T00:00:00');
+        let admissionDt;
+        if (admissionStr && (typeof admissionStr === 'string') && admissionStr.length === 10) {
+          admissionDt = new Date(admissionStr + 'T00:00:00');
         } else {
-          admissionDate = admissionStr ? new Date(admissionStr) : new Date();
+          admissionDt = admissionStr ? new Date(admissionStr) : new Date();
         }
 
         const today = new Date();
-        const daysDiff = Math.floor((today - admissionDate) / (1000 * 60 * 60 * 24));
+        const daysDiff = Math.floor((today - admissionDt) / (1000 * 60 * 60 * 24));
         const daysElapsed = daysDiff >= 0 ? daysDiff : 0;
+        const months = Math.floor(daysElapsed / 30);
 
-        // Calculate Fee based purely on Prorated Monthly (Monthly / 30 * Days)
-        const monthlyFeeRaw = parseInt(String(p.monthlyFee || '0').replace(/,/g, ''), 10) || 0;
-
-        // Unified rule: Monthly Fee / 30 * Days Elapsed
         const dailyFraction = monthlyFeeRaw / 30.0;
-        const calculatedFee = Math.floor(dailyFraction * Math.max(daysElapsed, 1)); // At least 1 day charge
+        const calculatedFee = Math.floor(dailyFraction * Math.max(daysElapsed, 1));
 
-        // 2. Received Amount
-        const receivedValue = parseInt(String(p.receivedAmount || '0').replace(/,/g, ''), 10) || 0;
-        const receivedAmount = formatCurrency(receivedValue);
-
-        // 3. Format base amounts for UI
-        const fee = formatCurrency(monthlyFeeRaw);
-
-        // 4. Total Charges & Total Pending Amount
         const canteenSpentValue = p.canteenSpent || 0;
         const laundryValue = p.laundryStatus ? (p.laundryAmount || 0) : 0;
+        const totalBillValue = calculatedFee + canteenSpentValue + laundryValue;
 
-        const totalChargesValue = calculatedFee + canteenSpentValue + laundryValue;
-        const totalCharges = formatCurrency(totalChargesValue);
+        const receivedValue = parseInt(String(p.receivedAmount || '0').replace(/,/g, ''), 10) || 0;
+        const balanceDue = totalBillValue - receivedValue;
 
-        const pendingValue = totalChargesValue - receivedValue;
+        totalCollection_val += receivedValue;
 
-        let pendingAmountText = formatCurrency(Math.abs(pendingValue));
-        let pendingAmountStyle = '';
-        if (pendingValue < 0) {
-          pendingAmountText += ' (Refund)';
-          pendingAmountStyle = 'text-green-700 bg-green-50 px-2 py-1 rounded inline-block';
-        } else if (pendingValue > 0) {
-          pendingAmountText += ' (Due)';
-          pendingAmountStyle = 'text-red-600 bg-red-50 px-2 py-1 rounded inline-block';
+        // --- STAY DISPLAY ---
+        const stayDisplay = `<div class="font-black ${valueClass} text-sm">${daysElapsed} Days</div>
+                             <div class="text-[9px] ${subTextClass} font-bold uppercase tracking-widest">${months} Months</div>`;
+
+        // --- BALANCE STATUS BADGE ---
+        let balanceHtml = '';
+        if (balanceDue > 0) {
+          balanceHtml = `<div class="${isDischarged ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-red-50 text-red-600 border-red-100 shadow-sm'} px-3 py-1.5 rounded-full text-[11px] font-black inline-block border uppercase tracking-wider">Rs. ${formatNumber(balanceDue)} Due</div>`;
+        } else if (balanceDue < 0) {
+          balanceHtml = `<div class="${isDischarged ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm'} px-3 py-1.5 rounded-full text-[11px] font-black inline-block border uppercase tracking-wider">Rs. ${formatNumber(Math.abs(balanceDue))} Refund</div>`;
         } else {
-          pendingAmountStyle = 'text-gray-600';
-        }
-        const areaDisplay = p.area || p.address || '-';
-        const drugDisplay = p.drug || '-';
-
-        let actionControls = '';
-        if (currentUser.role === 'Admin') {
-          if (isDischarged) {
-            actionControls = `<div class="flex flex-col items-end gap-1">
-                  <span class="text-xs font-bold uppercase border border-gray-300 px-2 py-1 rounded bg-white/50">Discharged</span>
-                  <button class="action-btn bg-white text-emerald-700 border border-emerald-200 px-3 py-1 rounded text-xs shadow-sm hover:bg-emerald-50 transition font-semibold" onclick="event.stopPropagation(); revertDischargeFromTable('${id}');">
-                    <i class="fas fa-undo mr-1"></i>Restore
-                  </button>
-                </div>`;
-          } else {
-            actionControls = `<button class="action-btn bg-gray-800 hover:bg-gray-900 text-white px-3 py-1 rounded text-xs shadow transition font-semibold" onclick="event.stopPropagation(); handleDischargeFromTable('${id}');"><i class="fas fa-print mr-1"></i>Discharge</button>`;
-          }
-        } else if (isDischarged) {
-          actionControls =
-            '<span class="text-xs font-bold uppercase border border-gray-300 px-2 py-1 rounded">Discharged</span>';
+          balanceHtml = `<div class="bg-gray-50 text-gray-400 px-3 py-1.5 rounded-full text-[11px] font-black inline-block border border-gray-100 uppercase tracking-wider">Cleared</div>`;
         }
 
-        // Generate serial number (use admissionDate already calculated above)
-        const monthNames = [
-          'Jan',
-          'Feb',
-          'Mar',
-          'Apr',
-          'May',
-          'Jun',
-          'Jul',
-          'Aug',
-          'Sep',
-          'Oct',
-          'Nov',
-          'Dec',
-        ];
-        const serialNo = `#${String(index + 1).padStart(3, '0')}`;
+        const formattedPid = id ? `P-${String(id).slice(-5).toUpperCase()}` : 'P-XXXXX';
 
-        // Format admission date
-        const formattedAdmissionDate = `${monthNames[admissionDate.getMonth()]
-          } ${admissionDate.getDate()} ${admissionDate.getFullYear()}`;
+        const tr = document.createElement('tr');
+        tr.className = `border-b transition hover:bg-gray-50/80 group cursor-pointer ${isDischarged ? 'discharged-row' : ''} ${rowContrastClass}`;
+        tr.onclick = (e) => {
+          if (e.target.closest('button, details, summary')) return;
+          showPatientDetail(id);
+        };
 
-        // Format days progress as "X/90" and months as "X months"
-        const daysProgress = `${daysElapsed} days`;
+        tr.innerHTML = `
+            <td class="px-4 py-6 text-center ${subTextClass} font-bold text-xs border-r border-gray-100">${index + 1}</td>
+            <td class="px-3 py-6 border-r border-gray-100 text-center w-[140px]">
+                <div class="font-extrabold ${textClass} text-sm truncate">${p.name}</div>
+                <div class="text-[10px] ${subTextClass} font-bold tracking-widest mt-0.5">${formattedPid}</div>
+            </td>
+            <td class="px-3 py-6 whitespace-nowrap text-center ${textClass} font-bold text-sm border-r border-gray-100 w-[130px] truncate">${p.fatherName || '—'}</td>
+            <td class="px-3 py-6 whitespace-nowrap ${subTextClass} font-black text-xs uppercase tracking-tight border-r border-gray-100">${admissionStr ? formatDisplayDate(admissionStr) : '—'}</td>
+            <td class="px-3 py-6 whitespace-nowrap ${textClass} font-bold text-sm max-w-[120px] truncate border-r border-gray-100">${p.area || p.address || '—'}</td>
+            <td class="px-3 py-6 whitespace-nowrap ${valueClass} font-black text-sm border-r border-gray-100">Rs. ${formatNumber(monthlyFeeRaw)}</td>
+            
+            <td class="px-3 py-6 whitespace-nowrap border-r border-gray-100">${stayDisplay}</td>
 
-        const totalMonths = Math.floor(daysElapsed / 30);
-        const monthsProgress = totalMonths === 1 ? '1 month' : `${totalMonths} months`;
+            <td class="px-3 py-6 whitespace-nowrap ${textClass} font-black text-sm border-r border-gray-100">Rs. ${formatNumber(totalBillValue)}</td>
 
-        if (isAdmin) {
-          tr.innerHTML = `<td class="px-1 py-2 font-medium text-gray-700 whitespace-nowrap text-xs">${serialNo}</td>
-                            <td class="px-1 py-2 font-medium whitespace-nowrap">${p.name || '-'}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${p.fatherName || '-'}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap text-xs">${formattedAdmissionDate}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${p.contactNo || '-'}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${areaDisplay}</td>
-                            <td class="px-1 py-2 whitespace-nowrap text-xs font-medium text-gray-900">${fee}</td>
-                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${daysProgress}</td>
-                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${monthsProgress}</td>
-                            <td class="px-1 py-2 font-bold text-emerald-800 whitespace-nowrap">${totalCharges}</td>
-                            <td class="px-1 py-2 font-semibold text-blue-700 whitespace-nowrap">${receivedAmount}</td>
-                            <td class="px-1 py-2 whitespace-nowrap"><span class="${pendingAmountStyle} font-semibold text-xs">${pendingAmountText}</span></td>
-                            <td class="px-1 py-2 text-right whitespace-nowrap">${actionControls}</td>`;
-        } else {
-          tr.innerHTML = `<td class="px-1 py-2 font-medium text-gray-700 whitespace-nowrap text-xs">${serialNo}</td>
-                            <td class="px-1 py-2 font-medium whitespace-nowrap">${p.name || '-'}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${p.fatherName || '-'}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap text-xs">${formattedAdmissionDate}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${p.contactNo || '-'}</td>
-                            <td class="px-1 py-2 text-gray-600 whitespace-nowrap">${areaDisplay}</td>
-                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${daysProgress}</td>
-                            <td class="px-1 py-2 text-center text-gray-700 font-medium whitespace-nowrap text-xs">${monthsProgress}</td>
-                            <td class="px-1 py-2 text-right whitespace-nowrap">${actionControls}</td>`;
-        }
+            <td class="px-3 py-6 whitespace-nowrap ${textClass} font-black text-sm border-r border-gray-100">Rs. ${formatNumber(receivedValue)}</td>
+
+            <td class="px-3 py-6 text-center whitespace-nowrap border-r border-gray-100">
+                <div class="flex items-center justify-center">
+                  ${balanceHtml}
+                </div>
+            </td>
+
+            <td class="px-2 py-6 whitespace-nowrap overflow-visible w-[120px]">  
+                <div class="flex items-center justify-center gap-2 overflow-visible">
+                    ${!isDischarged ? `
+                    <button onclick="event.stopPropagation(); handleDischargeFromTable('${id}')" class="bg-[#e63946] hover:bg-[#d62828] text-white px-4 py-2 rounded-full text-[10px] font-black transition shadow-md shadow-red-500/20 active:scale-95 uppercase tracking-wide flex items-center gap-1.5">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Discharge
+                    </button>
+                    ` : `
+                    <button onclick="event.stopPropagation(); printDischargeSlip('${id}')" class="bg-gray-900 hover:bg-black text-white px-2 py-1.5 rounded-lg text-[9px] font-black transition shadow-md active:scale-95 uppercase tracking-wide flex items-center gap-1 border border-gray-900">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <details class="relative">
+                        <summary onclick="event.stopPropagation();" class="list-none w-8 h-8 rounded-lg border border-gray-300 bg-white text-gray-700 flex items-center justify-center cursor-pointer hover:bg-gray-100">
+                            <i class="fas fa-ellipsis-v text-[11px]"></i>
+                        </summary>
+                        <div class="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[120px] z-50">
+                            <button onclick="event.stopPropagation(); revertDischargeFromTable('${id}')" class="w-full text-left px-3 py-2 text-[11px] font-bold text-gray-700 hover:bg-gray-50 rounded-lg">
+                                <i class="fas fa-undo mr-1"></i> Restore
+                            </button>
+                        </div>
+                    </details>
+                    `}
+                </div>
+            </td>`;
         tbody.appendChild(tr);
       });
+
+      // Update KPI Displays
+      if (document.getElementById('patients-total-count')) document.getElementById('patients-total-count').innerText = formatNumber(totalRecords);
+      if (document.getElementById('patients-active-count')) document.getElementById('patients-active-count').innerText = formatNumber(activeCount);
+      if (document.getElementById('patients-discharged-count')) document.getElementById('patients-discharged-count').innerText = formatNumber(dischargedCount);
+      if (document.getElementById('patients-total-collection')) document.getElementById('patients-total-collection').innerText = `Rs ${formatNumber(totalCollection_val)}`;
     }
 
     window.handleDischargeFromTable = async function (id) {
       try {
+        const resolvedId = resolvePatientId(id);
+        if (!resolvedId) {
+          showSuccessModal('Patient id not found.', true);
+          return;
+        }
+
         // Persist discharge status
         const payload = {
           isDischarged: true,
           dischargeDate: new Date().toISOString(),
         };
 
-        const res = await fetch(`/api/patients/${id}`, {
+        const res = await fetch(`/api/patients/${resolvedId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -2837,17 +2873,17 @@
           return;
         }
 
-        dischargedPatientIds.add(id);
+        dischargedPatientIds.add(String(resolvedId));
 
         // Update local cache for immediate UI feedback
         patientsData = patientsData.map((p) => {
-          if ((p._id || p.id) === id) {
+          if (getRecordIds(p).includes(String(resolvedId))) {
             return { ...p, isDischarged: true, dischargeDate: payload.dischargeDate };
           }
           return p;
         });
 
-        await printDischargeSlip(id);
+        await printDischargeSlip(resolvedId);
         renderPatientsTable(patientsData);
         if (typeof renderAccounts === 'function') renderAccounts();
         showSuccessModal('Patient discharged and saved.');
@@ -2859,12 +2895,18 @@
 
     window.revertDischargeFromTable = async function (id) {
       try {
+        const resolvedId = resolvePatientId(id);
+        if (!resolvedId) {
+          showSuccessModal('Patient id not found.', true);
+          return;
+        }
+
         const payload = {
           isDischarged: false,
           dischargeDate: null,
         };
 
-        const res = await fetch(`/api/patients/${id}`, {
+        const res = await fetch(`/api/patients/${resolvedId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -2876,16 +2918,17 @@
           return;
         }
 
-        dischargedPatientIds.delete(id);
+        dischargedPatientIds.delete(String(resolvedId));
 
         patientsData = patientsData.map((p) => {
-          if ((p._id || p.id) === id) {
+          if (getRecordIds(p).includes(String(resolvedId))) {
             return { ...p, isDischarged: false, dischargeDate: null };
           }
           return p;
         });
 
         renderPatientsTable(patientsData);
+        if (typeof renderAccounts === 'function') renderAccounts();
         showSuccessModal('Patient restored to active list.');
       } catch (err) {
         console.error('Revert discharge error:', err);
@@ -2940,14 +2983,14 @@
 
       // Add event listener for laundry checkbox
       const laundryCheckbox = document.getElementById('new-patient-laundry-status');
-      laundryCheckbox.addEventListener('change', function () {
+      laundryCheckbox.onchange = function () {
         const container = document.getElementById('laundry-amount-container');
         if (this.checked) {
           container.classList.remove('hidden');
         } else {
           container.classList.add('hidden');
         }
-      });
+      };
     };
 
     window.showSuccessModal = function (message, isError = false) {
@@ -3110,13 +3153,13 @@
             : 'Enable Laundry Service';
         }
         // Add event listener to update label on toggle
-        laundryCheckbox.addEventListener('change', function () {
+        laundryCheckbox.onchange = function () {
           if (laundryLabel) {
             laundryLabel.textContent = this.checked
               ? 'Laundry Service Enabled'
               : 'Enable Laundry Service';
           }
-        });
+        };
       }
       setVal('det-laundry-amount', p.laundryAmount || '0');
 
@@ -3284,7 +3327,21 @@
 
     window.addEventListener('load', initPhotoUploadHandlers);
 
-    // --- ACCOUNTS (ADMIN) ---
+    async function handleAccountsSearch(query) {
+      const tbody = document.getElementById('accounts-table-body');
+      if (!tbody) return;
+      const rows = tbody.querySelectorAll('tr');
+      const q = query.toLowerCase().trim();
+
+      rows.forEach(row => {
+        const nameText = row.querySelector('td:first-child')?.innerText.toLowerCase() || '';
+        if (nameText.includes(q)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
     async function renderAccounts() {
       if (currentUser.role !== 'Admin') return;
       try {
@@ -3300,88 +3357,110 @@
         const tbody = document.getElementById('accounts-table-body');
         tbody.innerHTML = '';
 
-        accountsData.forEach((p) => {
-          // 2. PARSE VALUES (The Fix: Force everything to Number)
-          // Use calculatedFee if available (prorated), otherwise use monthlyFee
-          const fee = Number(String(p.calculatedFee || p.monthlyFee).replace(/,/g, '')) || 0;
-          const received = Number(String(p.receivedAmount).replace(/,/g, '')) || 0;
-          const canteen = Number(String(p.canteenTotal).replace(/,/g, '')) || 0;
-          const laundry = Number(String(p.laundryAmount).replace(/,/g, '')) || 0;
+        let totalPending = 0;
+        let totalRefunds = 0;
+        let totalCollection = 0;
+        let activeCount = 0;
 
-          // 3. CALCULATE TOTALS (Now guaranteed to be math addition)
+        accountsData.forEach((p) => {
+          const isDischarged = p.isDischarged;
+          const rowId = p.patientId || p.patient_id || p._id || p.id;
+
+          // Active rows keep strong contrast; discharged rows are dimmed.
+          const rowContrastClass = isDischarged ? 'bg-gray-50' : '';
+          const textClass = 'text-gray-900';
+          const subTextClass = 'text-gray-500';
+          const valueClass = 'text-gray-900';
+
+          // 2. PARSE VALUES
+          const fee = Number(p.calculatedFee) || 0;
+          const canteen = Number(p.canteenTotal) || 0;
+          const laundry = Number(p.laundryAmount) || 0;
+          const received = Number(String(p.receivedAmount || '0').replace(/,/g, '')) || 0;
+
           const totalBill = fee + canteen + laundry;
           const balanceDue = totalBill - received;
 
-          // 4. STYLING
-          const rowClass = p.isDischarged
-            ? 'discharged-row border-gray-100'
-            : 'hover:bg-gray-50 transition';
+          // Update KPI counters
+          totalCollection += received;
+          if (balanceDue > 0) totalPending += balanceDue;
+          if (balanceDue < 0) totalRefunds += Math.abs(balanceDue);
+          if (!p.isDischarged) activeCount++;
 
-          // Balance Text Color logic
-          const balanceClass =
-            balanceDue > 0
-              ? p.isDischarged
-                ? 'text-red-300 font-bold'
-                : 'text-red-600 font-bold'
-              : p.isDischarged
-                ? 'text-green-300 font-bold'
-                : 'text-green-600 font-bold';
-
-          const statusBadge = p.isDischarged
-            ? '<span class="ml-2 text-[10px] uppercase font-bold bg-gray-200 text-gray-500 px-2 py-0.5 rounded">Discharged</span>'
-            : '';
+          let balanceHtml = '';
+          if (balanceDue > 0) {
+            balanceHtml = `<div class="font-black text-red-600 text-sm">Rs ${formatNumber(balanceDue)}</div>`;
+          } else if (balanceDue < 0) {
+            balanceHtml = `<div class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Refund</div><div class="font-black text-emerald-600 text-sm">Rs ${formatNumber(Math.abs(balanceDue))}</div>`;
+          } else {
+            balanceHtml = `<div class="font-black text-emerald-600 text-sm">Rs 0</div>`;
+          }
 
           tbody.innerHTML += `
-        <tr class="border-b transition ${rowClass}">
-            <td class="px-2 py-2 font-medium whitespace-nowrap sticky left-0 bg-white z-10 border-r shadow-sm">
-                ${p.name} ${statusBadge}
+        <tr class="border-b transition hover:bg-gray-50/80 group ${isDischarged ? 'discharged-row' : ''} ${rowContrastClass}">
+            <td class="px-5 py-6 border-r border-gray-100">
+                <div class="font-extrabold ${textClass} text-sm">${p.name || '—'}</div>
             </td>
-            <td class="px-2 py-2">${p.fatherName}</td>
-            <td class="px-2 py-2 text-sm">${p.admissionDate}</td>
-            
-            <td class="px-2 py-2">
-                <div class="font-bold">${formatCurrency(totalBill)}</div>
-                <div class="text-[10px] opacity-70 leading-tight">
-                    (Fee: ${formatNumber(fee)} + Cant: ${formatNumber(
-            canteen
-          )} + Lnd: ${formatNumber(laundry)})
+            <td class="px-3 py-6 whitespace-nowrap ${textClass} font-bold text-sm border-r border-gray-100">${p.fatherName || '—'}</td>
+            <td class="px-3 py-6 whitespace-nowrap ${subTextClass} font-black text-xs uppercase tracking-tight border-r border-gray-100">${p.admissionDate ? formatDisplayDate(p.admissionDate) : '—'}</td>
+
+            <td class="px-3 py-6 whitespace-nowrap border-r border-gray-100">
+                <div class="${valueClass} font-black text-sm">Rs ${formatNumber(totalBill)}</div>
+                <div class="text-[11px] ${subTextClass} mt-1">(Fee: ${formatNumber(fee)} + Cant: ${formatNumber(canteen)} + Lnd: ${formatNumber(laundry)})</div>
+            </td>
+
+            <td class="px-3 py-6 whitespace-nowrap border-r border-gray-100">
+                <div class="${valueClass} font-black text-sm">Rs ${formatNumber(received)}</div>
+                <div class="text-[11px] ${subTextClass} mt-1 uppercase tracking-wide">ADVANCE TOTAL</div>
+            </td>
+
+            <td class="px-3 py-6 whitespace-nowrap border-r border-gray-100">
+                ${balanceHtml}
+            </td>
+
+            <td class="px-3 py-6 whitespace-nowrap">  
+                <div class="flex items-center justify-center gap-2">
+                    ${!isDischarged ? `
+                    <button onclick="event.stopPropagation(); handleDischargeFromTable('${rowId}')" class="bg-[#0b9b65] hover:bg-[#098858] text-white px-6 py-2.5 rounded-lg text-[11px] font-black transition shadow-sm active:scale-95 uppercase tracking-wider flex items-center gap-2">
+                      <i class="fas fa-sign-out-alt"></i> Discharge
+                    </button>
+                    ` : `
+                    <div class="flex items-center justify-center gap-1">
+                    <button onclick="event.stopPropagation(); printDischargeSlip('${rowId}')" class="bg-gray-900 hover:bg-black text-white px-2 py-1.5 rounded-lg text-[9px] font-black transition shadow-md active:scale-95 uppercase tracking-wide flex items-center gap-1 border border-gray-900">
+                      <i class="fas fa-print"></i> Print
+                    </button>
+                    <button onclick="event.stopPropagation(); revertDischargeFromTable('${rowId}')" class="bg-white hover:bg-gray-100 text-gray-700 px-2 py-1.5 rounded-lg text-[9px] font-black transition shadow-sm active:scale-95 uppercase tracking-wide flex items-center gap-1 border border-gray-300">
+                      <i class="fas fa-undo"></i> Restore
+                    </button>
+                    </div>
+                    `}
                 </div>
-            </td>
-
-            <td class="px-2 py-2 font-medium">
-                <div class="text-emerald-700 font-bold">${formatCurrency(received)}</div>
-                <hr class="my-0.5 border-gray-100">
-                <div class="text-[9px] uppercase opacity-60">Advance Total</div>
-            </td>
-
-            <td class="px-2 py-2 ${balanceClass}">
-                ${balanceDue < 0 ? '<span class="text-[9px] uppercase block">Refund</span>' : ''}
-                ${formatCurrency(Math.abs(balanceDue))}
-            </td>
-
-            <td class="px-2 py-2">  
-                ${p.isDischarged
-              ? `<button onclick="printDischargeSlip('${p.id}')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded text-[11px] border border-gray-300 transition font-semibold">
-                        <i class="fas fa-print mr-1"></i> Print Invoice
-                       </button>`
-              : `<button onclick="handleDischargeFromTable('${p.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 rounded text-[11px] shadow-sm transition font-semibold">
-                        <i class="fas fa-sign-out-alt mr-1"></i> Discharge
-                       </button>`
-            }
             </td>
         </tr>`;
         });
+
+        // Update KPI Displays
+        document.getElementById('accounts-total-pending').innerText = `Rs ${formatNumber(totalPending)}`;
+        document.getElementById('accounts-total-refunds').innerText = `Rs ${formatNumber(totalRefunds)}`;
+        document.getElementById('accounts-total-collection').innerText = `Rs ${formatNumber(totalCollection)}`;
+        document.getElementById('accounts-active-count').innerText = formatNumber(activeCount);
       } catch (e) {
         console.error(e);
       }
     }
 
     window.printDischargeSlip = async function (id) {
+      const resolvedId = resolvePatientId(id);
+      if (!resolvedId) {
+        showSuccessModal('Patient id not found.', true);
+        return;
+      }
+
       // 1. Locate Patient Data
-      let p = accountsData?.find((x) => (x._id || x.id) === id);
+      let p = accountsData?.find((x) => getRecordIds(x).includes(String(resolvedId)));
       // Fallback search if not in accountsData
       if (!p && Array.isArray(patientsData)) {
-        const candidate = patientsData.find((x) => (x._id || x.id) === id);
+        const candidate = patientsData.find((x) => getRecordIds(x).includes(String(resolvedId)));
         if (candidate) {
           p = {
             id: candidate._id || candidate.id,
@@ -3403,7 +3482,7 @@
       // 2. Fetch Payment History from Backend
       let paymentHistory = [];
       try {
-        const res = await fetch(`/api/patients/${id}/payment_history`);
+        const res = await fetch(`/api/patients/${resolvedId}/payment_history`);
         if (res.ok) paymentHistory = await res.json();
       } catch (e) {
         console.error('History fetch error', e);
@@ -4001,9 +4080,6 @@
       const currentMonth = now.getMonth() + 1;
       const currentYear = now.getFullYear();
 
-      // Set current month
-      monthSelect.value = currentMonth;
-
       // Populate years (current year and 2 years back)
       yearSelect.innerHTML = '';
       for (let y = currentYear; y >= currentYear - 2; y--) {
@@ -4012,9 +4088,16 @@
         option.textContent = y;
         yearSelect.appendChild(option);
       }
-      yearSelect.value = currentYear;
 
-      // Fetch employees for dropdown
+      // Explicitly set to current month/year
+      monthSelect.value = String(currentMonth);
+      yearSelect.value = String(currentYear);
+
+      // Load data immediately for the current month
+      // This ensures "jo month chal rha ho us month ka data load o sirf"
+      await loadMonthlyOverheadsTable();
+
+      // Fetch employees for dropdown in background
       try {
         const res = await fetch('/api/employees');
         if (res.ok) {
@@ -4023,15 +4106,21 @@
       } catch (e) {
         console.error('Failed to fetch employees:', e);
       }
-
-      // Load current month data
-      await loadMonthlyOverheadsTable();
     }
 
     window.loadMonthlyOverheadsTable = async function () {
       try {
-        const month = parseInt(document.getElementById('monthly-overheads-month-select').value);
-        const year = parseInt(document.getElementById('monthly-overheads-year-select').value);
+        const monthSelect = document.getElementById('monthly-overheads-month-select');
+        const yearSelect = document.getElementById('monthly-overheads-year-select');
+        if (!monthSelect || !yearSelect) return;
+
+        const month = parseInt(monthSelect.value);
+        const year = parseInt(yearSelect.value);
+
+        const container = document.getElementById('monthly-overheads-table-container');
+        if (container) {
+          container.innerHTML = '<div class="p-12 text-center text-gray-500 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>Loading monthly overheads...</div>';
+        }
 
         console.log(`[MONTHLY OVERHEADS] Loading table for ${month}/${year}`);
 
@@ -4131,39 +4220,39 @@
 
         tableHTML += `
             <tr class="hover:bg-emerald-50 border-b">
-              <td class="px-3 py-2 text-center border border-gray-200 font-semibold">${day}</td>
-              <td class="px-3 py-2 text-center border border-gray-200 text-gray-600">${dayName}</td>
-              <td class="px-3 py-2 text-right border border-gray-200 cursor-pointer hover:bg-yellow-50" 
+              <td class="px-3 py-2.5 text-center border-x border-gray-100 font-semibold">${day}</td>
+              <td class="px-3 py-2.5 text-center border-x border-gray-100 text-gray-600">${dayName}</td>
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="kitchen"
                   data-date="${dateStr}"
                   onblur="saveMonthlyOverheadCell(this)"
                   onfocus="selectAllText(this)">${kitchen || ''}</td>
-              <td class="px-3 py-2 text-right border border-gray-200 bg-gray-100 text-gray-700 font-semibold">${canteenAuto ? formatCurrency(canteenAuto) : ''}</td>
-              <td class="px-3 py-2 text-right border border-gray-200 cursor-pointer hover:bg-yellow-50" 
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 bg-gray-50/50 text-gray-700 font-semibold">${canteenAuto ? formatCurrency(canteenAuto) : ''}</td>
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="others"
                   data-date="${dateStr}"
                   onblur="saveMonthlyOverheadCell(this)"
                   onfocus="selectAllText(this)">${others || ''}</td>
-              <td class="px-3 py-2 text-right border border-gray-200 cursor-pointer hover:bg-yellow-50" 
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="pay_advance"
                   data-date="${dateStr}"
                   onblur="saveMonthlyOverheadCell(this)"
                   onfocus="selectAllText(this)">${payAdvance || ''}</td>
-              <td class="px-3 py-2 text-right border border-gray-200 bg-emerald-100 font-bold text-emerald-900">${rowExpense ? formatCurrency(rowExpense) : ''}</td>
-              <td class="px-3 py-2 text-right border border-gray-200 cursor-pointer hover:bg-yellow-50" 
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 bg-emerald-50/50 font-bold text-emerald-900">${rowExpense ? formatCurrency(rowExpense) : ''}</td>
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="income"
                   data-date="${dateStr}"
                   onblur="saveMonthlyOverheadCell(this)"
                   onfocus="selectAllText(this)">${income || ''}</td>
-                            <td class="px-3 py-2 text-right border border-gray-200 font-bold ${dayProfit >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}">${dayProfit ? formatCurrency(dayProfit) : ''}</td>
-              <td class="px-1 py-2 border border-gray-200 cursor-pointer hover:bg-yellow-50 relative text-gray-600 text-xs w-20" 
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 font-bold ${dayProfit >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}">${dayProfit ? formatCurrency(dayProfit) : ''}</td>
+              <td class="px-2 py-2.5 border-x border-gray-100 cursor-pointer hover:bg-yellow-50 relative text-gray-600 text-[10px] w-24" 
                   data-field="employee_names"
                   data-date="${dateStr}"
-                  onclick="openMonthlyEmployeeDropdown(this)">${employeeNames || '<span class="text-gray-400 italic text-xs">Optional</span>'}</td>
+                  onclick="openMonthlyEmployeeDropdown(this)">${employeeNames || '<span class="text-gray-400 italic">Optional</span>'}</td>
             </tr>
           `;
       }
@@ -4545,12 +4634,73 @@
     };
 
     // --- OVERHEADS MANAGEMENT ---
+    async function initializeFinanceSelectors() {
+      const monthSelect = document.getElementById('finance-month-select');
+      const yearSelect = document.getElementById('finance-year-select');
+      if (!monthSelect || !yearSelect) return;
+
+      if (monthSelect.dataset.initialized) return;
+
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      // Populate years
+      yearSelect.innerHTML = '';
+      for (let y = currentYear; y >= currentYear - 2; y--) {
+        const option = document.createElement('option');
+        option.value = y;
+        option.textContent = y;
+        yearSelect.appendChild(option);
+      }
+
+      monthSelect.value = String(currentMonth);
+      yearSelect.value = String(currentYear);
+      monthSelect.dataset.initialized = "true";
+    }
+
     async function renderOverheads() {
       if (currentUser.role !== 'Admin') return;
-      totalSalaries = 0;
-      totalBills = 0;
-      await Promise.all([renderTeam(true), renderUtilityBills(true)]);
-      updateOverheadTotal();
+
+      await initializeFinanceSelectors();
+
+      const month = document.getElementById('finance-month-select').value;
+      const year = document.getElementById('finance-year-select').value;
+
+      const incomeEl = document.getElementById('overhead-total-income');
+      const expenseEl = document.getElementById('grand-overhead-total');
+
+      if (incomeEl) incomeEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+      if (expenseEl) expenseEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+      try {
+        const res = await fetch(`/api/finance/summary/${month}/${year}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          if (incomeEl) incomeEl.innerText = formatCurrency(data.totalIncome || 0);
+          if (expenseEl) expenseEl.innerText = formatCurrency(data.totalEstimatedOverheads || 0);
+
+          const displays = {
+            'total-salary-display': data.totalSalaries,
+            'total-bills-display': data.totalUtilityBills,
+            'total-kitchen-display': data.totalKitchen,
+            'total-canteen-display': data.totalCanteenAuto,
+            'total-others-display': data.totalOthers,
+            'total-advance-display': data.totalPayAdvance
+          };
+
+          for (const [id, val] of Object.entries(displays)) {
+            const el = document.getElementById(id);
+            if (el) el.innerText = formatNumber(val || 0);
+          }
+
+          // Update details below
+          await Promise.all([renderTeam(true), renderUtilityBills(true)]);
+        }
+      } catch (e) {
+        console.error('Error rendering finance summary:', e);
+      }
       loadOldBalances();
     }
 
@@ -4577,7 +4727,13 @@
       if (currentUser.role !== 'Admin') return;
 
       try {
-        const res = await fetch('/api/utility_bills');
+        let url = '/api/utility_bills';
+        if (isOverheadContext) {
+          const m = document.getElementById('finance-month-select').value;
+          const y = document.getElementById('finance-year-select').value;
+          url += `?month=${m}&year=${y}`;
+        }
+        const res = await fetch(url);
         const bills = await res.json();
 
         const grid = document.getElementById('bills-grid');
@@ -4937,7 +5093,7 @@
     }
 
     // --- OVERHEADS DASHBOARD ---
-    window.onload = initApp;
+    // initApp is already bound via addEventListener('load', initApp) above.
 
     function updateOverheadTotal() {
       const grandTotal = totalSalaries + totalBills;
@@ -7179,79 +7335,154 @@
     </section>
 
     <section id="accounts-view" class="view-section hidden p-4 md:p-8">
-      <h2 class="text-xl md:text-2xl font-bold mb-6 text-green-800">
-        <i class="fas fa-file-invoice-dollar mr-2"></i>Accounts & Discharge
-      </h2>
-      <div class="kpi-card" style="padding: 0; border-color: rgba(16, 185, 129, 0.2)">
+      <div class="flex flex-col gap-6 mb-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div class="bg-emerald-100 p-3 rounded-xl text-emerald-700 shadow-sm">
+              <i class="fas fa-file-invoice-dollar text-2xl"></i>
+            </div>
+            <div>
+              <h2 class="text-2xl font-extrabold text-emerald-900 tracking-tight">Accounts & Discharge</h2>
+              <p class="text-sm text-emerald-600/70 font-medium">Manage patient financial records and discharge status
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative min-w-[280px]">
+              <span class="absolute inset-y-0 left-3 flex items-center text-emerald-600/50 pointer-events-none">
+                <i class="fas fa-search text-sm"></i>
+              </span>
+              <input type="search" id="accounts-search-input"
+                class="w-full pl-10 pr-4 py-2 bg-white border border-emerald-100 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 placeholder:text-gray-400 transition-all"
+                placeholder="Search patient name..." oninput="handleAccountsSearch(this.value)" />
+            </div>
+            <button onclick="document.getElementById('export-modal').classList.remove('hidden')"
+              class="bg-white border border-gray-200 hover:border-gray-300 text-gray-700 px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center shadow-sm active:scale-95 group">
+              <i class="fas fa-file-export mr-2 text-gray-400 group-hover:text-gray-600"></i> Export
+            </button>
+            <button onclick="openNewAdmissionModal()"
+              class="bg-[#0b7454] hover:bg-[#096347] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center shadow-lg shadow-emerald-500/20 active:scale-95">
+              <i class="fas fa-plus-circle mr-2 text-lg"></i> Admission
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Pending</span>
+            <div class="text-2xl font-black text-red-500 mt-1" id="accounts-total-pending">Rs 0</div>
+          </div>
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Refunds Due</span>
+            <div class="text-2xl font-black text-emerald-500 mt-1" id="accounts-total-refunds">Rs 0</div>
+          </div>
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Collection</span>
+            <div class="text-2xl font-black text-blue-600 mt-1" id="accounts-total-collection">Rs 0</div>
+          </div>
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Active Patients</span>
+            <div class="text-2xl font-black text-gray-800 mt-1" id="accounts-active-count">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-visible">
         <div class="overflow-x-auto w-full">
-          <table class="min-w-full divide-y divide-emerald-100 overflow-x-auto" style="font-size: 0.75rem;">
-            <thead class="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white">
+          <table class="min-w-full divide-y divide-gray-100 overflow-x-auto" style="font-size: 0.8rem;">
+            <thead class="bg-[#0b7454] text-white">
               <tr>
-                <th
-                  class="px-2 py-2 text-left whitespace-nowrap font-semibold sticky left-0 bg-emerald-600 z-20 shadow-sm">
+                <th class="px-5 py-4 text-left uppercase tracking-widest font-black text-[10px]">
                   Patient Name</th>
-                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Father Name</th>
-                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Admission</th>
-                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Total Bill</th>
-                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Advance Received</th>
-                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold text-center">Refund / Balance Due</th>
-                <th class="px-2 py-2 text-left whitespace-nowrap font-semibold">Actions</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Father Name</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Admission</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Total Bill</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Advance Received</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Refund / Balance Due
+                </th>
+                <th class="px-3 py-4 text-center uppercase tracking-widest font-black text-[10px]">Actions</th>
               </tr>
             </thead>
-            <tbody id="accounts-table-body" class="divide-y divide-emerald-50"></tbody>
+            <tbody id="accounts-table-body" class="divide-y divide-gray-50 bg-white"></tbody>
           </table>
         </div>
       </div>
     </section>
 
     <section id="patients-view" class="view-section hidden p-4 md:p-8">
-      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-4">
-        <div class="flex flex-col gap-3 flex-1">
-          <h2 class="text-2xl font-bold">Patients Directory</h2>
-          <div class="relative w-full md:max-w-sm">
-            <span class="absolute inset-y-0 left-3 flex items-center text-emerald-600 pointer-events-none">
-              <i class="fas fa-search"></i>
-            </span>
-            <input type="search" id="patients-search-input"
-              class="w-full pl-10 pr-4 py-2 border border-emerald-200 rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 placeholder:text-gray-400 bg-white"
-              placeholder="Search patients by name" aria-label="Search patients by name"
-              oninput="handlePatientsSearch(this.value)" />
+      <!-- Premium Header Section -->
+      <div class="flex flex-col gap-6 mb-8">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <div class="bg-emerald-100 p-3 rounded-xl text-emerald-700 shadow-sm">
+              <i class="fas fa-users-cog text-2xl"></i>
+            </div>
+            <div>
+              <h2 class="text-2xl font-extrabold text-emerald-900 tracking-tight">Patients Directory</h2>
+              <p class="text-sm text-emerald-600/70 font-medium">Comprehensive view of all hospital admissions</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative min-w-[280px]">
+              <span class="absolute inset-y-0 left-3 flex items-center text-emerald-600/50 pointer-events-none">
+                <i class="fas fa-search text-sm"></i>
+              </span>
+              <input type="search" id="patients-search-input"
+                class="w-full pl-10 pr-4 py-2 bg-white border border-emerald-100 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 placeholder:text-gray-400 transition-all"
+                placeholder="Search patients by name..." oninput="handlePatientsSearch(this.value)" />
+            </div>
+            <button onclick="document.getElementById('export-modal').classList.remove('hidden')"
+              class="bg-white border border-gray-200 hover:border-gray-300 text-gray-700 px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center shadow-sm active:scale-95 group">
+              <i class="fas fa-file-export mr-2 text-gray-400 group-hover:text-gray-600"></i> Export
+            </button>
+            <button id="add-new-patient-btn" onclick="openNewAdmissionModal()"
+              class="bg-[#0b7454] hover:bg-[#096347] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition flex items-center shadow-lg shadow-emerald-500/20 active:scale-95">
+              <i class="fas fa-plus-circle mr-2 text-lg"></i> Admission
+            </button>
           </div>
         </div>
-        <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto md:items-center md:justify-end">
-          <button onclick="document.getElementById('export-modal').classList.remove('hidden')"
-            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-semibold shadow-md text-center">
-            <i class="fas fa-file-excel mr-2"></i>Export
-          </button>
-          <button id="add-new-patient-btn" onclick="openNewAdmissionModal()"
-            class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 transition font-semibold shadow-md text-center">
-            <i class="fas fa-plus mr-2"></i>New Admission
-          </button>
+
+        <!-- Patients KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Records</span>
+            <div class="text-2xl font-black text-emerald-900 mt-1" id="patients-total-count">0</div>
+          </div>
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Active Patients</span>
+            <div class="text-2xl font-black text-emerald-600 mt-1" id="patients-active-count">0</div>
+          </div>
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Discharged</span>
+            <div class="text-2xl font-black text-gray-400 mt-1" id="patients-discharged-count">0</div>
+          </div>
+          <div class="bg-white border border-emerald-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Collection</span>
+            <div class="text-2xl font-black text-blue-600 mt-1" id="patients-total-collection">Rs 0</div>
+          </div>
         </div>
       </div>
-      <div class="kpi-card" style="padding: 0; border-color: rgba(16, 185, 129, 0.2);">
-        <div class="overflow-x-auto w-full">
-          <table class="min-w-full divide-y divide-emerald-100" style="font-size: 0.72rem;">
-            <thead class="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white">
-              <tr id="patients-table-headers">
-                <th class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Serial No</th>
-                <th class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Name</th>
-                <th class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Father</th>
-                <th class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Admission</th>
-                <th id="header-contact" class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Contact</th>
-                <th class="px-2 py-2 text-left font-semibold text-xs whitespace-nowrap">Area</th>
-                <th id="header-fee"
-                  class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">
-                  Fee/Mo</th>
-                <th class="px-2 py-2 text-center font-semibold text-xs whitespace-nowrap">Days</th>
-                <th class="px-2 py-2 text-center font-semibold text-xs whitespace-nowrap">Months</th>
-                <th id="header-total-charges"
-                  class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">Total</th>
-                <th id="header-received"
-                  class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">Received</th>
-                <th id="header-pending"
-                  class="px-2 py-2 text-left font-semibold text-xs admin-only-column whitespace-nowrap">Pending</th>
-                <th class="px-2 py-2 text-right font-semibold text-xs whitespace-nowrap">Actions</th>
+      <div class="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-visible">
+        <div class="w-full">
+          <table class="w-full table-fixed divide-y divide-gray-100" style="font-size: 0.76rem;">
+            <thead class="bg-[#0b7454] text-white">
+              <tr>
+                <th
+                  class="px-4 py-4 text-center uppercase tracking-widest font-black sticky left-0 bg-[#0b7454] z-20 shadow-sm w-12 text-[10px]">
+                  #</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px] w-[140px]">
+                  Patient Name</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px] w-[130px]">Guardian</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Admission</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Area</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Fee/Mo</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Stay</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Total Bill</th>
+                <th class="px-3 py-4 text-left uppercase tracking-widest font-black text-[10px]">Paid/Advance</th>
+                <th class="px-3 py-4 text-center uppercase tracking-widest font-black text-[10px]">Balance Status
+                </th>
+                <th class="px-3 py-4 text-center uppercase tracking-widest font-black text-[10px]">Actions</th>
               </tr>
             </thead>
             <tbody id="patients-table-body" class="divide-y divide-emerald-50"></tbody>
@@ -7592,13 +7823,39 @@
 
     <section id="overheads-view" class="view-section hidden p-4 md:p-8">
       <div class="mb-8">
-        <div class="mb-6">
-          <h2 class="text-2xl font-bold text-green-900">
-            <i class="fas fa-coins mr-2"></i>Overheads & Finance
-          </h2>
-          <p class="text-sm text-gray-500">
-            Monthly financial projection: Expected Incoming Fees vs. Estimated Costs.
-          </p>
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <div>
+            <h2 class="text-2xl font-bold text-green-900">
+              <i class="fas fa-coins mr-2"></i>Overheads & Finance
+            </h2>
+            <p class="text-sm text-gray-500">
+              Monthly financial projection: Expected Incoming Fees vs. Estimated Costs.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm border border-emerald-100">
+            <select id="finance-month-select"
+              class="border rounded px-3 py-2 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-emerald-500">
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+            <select id="finance-year-select"
+              class="border rounded px-3 py-2 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-emerald-500"></select>
+            <button onclick="renderOverheads()"
+              class="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-bold hover:bg-emerald-700 transition shadow-sm">
+              <i class="fas fa-sync-alt mr-1"></i> Load
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -7627,9 +7884,26 @@
               <div class="mt-2 flex items-baseline gap-2">
                 <span id="grand-overhead-total" class="text-3xl font-extrabold text-red-700">PKR 0</span>
               </div>
-              <div class="text-xs text-red-500 mt-1 font-medium">
-                (Salaries: <span id="total-salary-display">0</span> + Bills:
-                <span id="total-bills-display">0</span>)
+              <div
+                class="grid grid-cols-2 gap-x-4 gap-y-1 mt-3 text-[10px] font-medium text-red-600/80 uppercase tracking-tight bg-red-100/30 p-2 rounded-lg border border-red-100">
+                <div class="flex justify-between border-b border-red-100 pb-0.5">
+                  <span>Salaries:</span> <span id="total-salary-display" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between border-b border-red-100 pb-0.5">
+                  <span>Bills:</span> <span id="total-bills-display" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between border-b border-red-100 pb-0.5">
+                  <span>Kitchen:</span> <span id="total-kitchen-display" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between border-b border-red-100 pb-0.5">
+                  <span>Canteen:</span> <span id="total-canteen-display" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Others:</span> <span id="total-others-display" class="font-bold">0</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Advance:</span> <span id="total-advance-display" class="font-bold">0</span>
+                </div>
               </div>
             </div>
             <div

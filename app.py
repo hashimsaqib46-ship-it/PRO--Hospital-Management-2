@@ -1759,8 +1759,15 @@ def get_call_meeting_summary(month, year):
 def get_utility_bills():
     if not check_db(): return jsonify({"error": "Database error"}), 500
     try:
-        # Fetch all bills sorted by due date (soonest first)
-        cursor = mongo.db.utility_bills.find().sort('due_date', 1)
+        month = request.args.get('month', type=int)
+        year = request.args.get('year', type=int)
+        
+        query = {}
+        if month and year:
+            search_pattern = f"{year}-{month:02d}-"
+            query['due_date'] = {'$regex': f'^{search_pattern}'}
+            
+        cursor = mongo.db.utility_bills.find(query).sort('due_date', 1)
         bills = []
         for b in cursor:
             bills.append({
@@ -1934,6 +1941,82 @@ def get_payment_records():
 # ============================================================
 #  OVERHEADS MANAGEMENT (Admin Only)
 # ============================================================
+
+@app.route('/api/finance/summary/<int:month>/<int:year>', methods=['GET'])
+@role_required(['Admin'])
+def get_finance_summary(month, year):
+    """
+    Get a complete financial summary for a given month/year.
+    Includes salaries, utility bills, and daily overheads (kitchen, canteen, others).
+    """
+    if not check_db(): return jsonify({"error": "Database error"}), 500
+    try:
+        # 1. Salaries Total
+        employees = list(mongo.db.employees.find())
+        total_salaries = 0
+        for emp in employees:
+            try:
+                pay = int(str(emp.get('pay', '0')).replace(',', ''))
+                total_salaries += pay
+            except: pass
+
+        # 2. Utility Bills for this month
+        # We look for bills with a due_date in the format YYYY-MM-DD that matches
+        search_pattern = f"{year}-{month:02d}-"
+        bills = list(mongo.db.utility_bills.find({'due_date': {'$regex': f'^{search_pattern}'}}))
+        total_bills = sum(b.get('amount', 0) for b in bills)
+
+        # 3. Daily Overheads (Expenses and Income)
+        overheads = list(mongo.db.overheads.find({
+            'month': month,
+            'year': year
+        }))
+        
+        total_income = 0
+        total_kitchen = 0
+        total_others = 0
+        total_pay_advance = 0
+        
+        for entry in overheads:
+            total_income += entry.get('income', 0)
+            total_kitchen += entry.get('kitchen', 0)
+            total_others += entry.get('others', 0)
+            total_pay_advance += entry.get('pay_advance', 0)
+
+        # 4. Canteen Auto (Calculated from canteen_sales for the month)
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+            
+        canteen_agg = mongo.db.canteen_sales.aggregate([
+            {'$match': {'date': {'$gte': start_date, '$lt': end_date}}},
+            {'$group': {'_id': None, 'total': {'$sum': '$amount'}}}
+        ])
+        canteen_res = list(canteen_agg)
+        total_canteen_auto = canteen_res[0]['total'] if canteen_res else 0
+
+        # Grand Total Overheads
+        total_estimated_overheads = total_salaries + total_bills + total_kitchen + total_others + total_pay_advance + total_canteen_auto
+
+        return jsonify({
+            'month': month,
+            'year': year,
+            'totalSalaries': total_salaries,
+            'totalUtilityBills': total_bills,
+            'totalKitchen': total_kitchen,
+            'totalCanteenAuto': total_canteen_auto,
+            'totalOthers': total_others,
+            'totalPayAdvance': total_pay_advance,
+            'totalEstimatedOverheads': total_estimated_overheads,
+            'totalIncome': total_income,
+            'profit': total_income - total_estimated_overheads
+        })
+    except Exception as e:
+        print(f"Finance Summary Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/overheads/<int:month>/<int:year>', methods=['GET'])
 @role_required(['Admin'])
