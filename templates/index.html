@@ -6904,13 +6904,17 @@
     function calcManualDischargeTotals() {
       const stay = parseAmount(document.getElementById('mdr-stay-days')?.value || 0);
       const monthlyFee = parseAmount(document.getElementById('mdr-monthly-fee')?.value || 0);
+      const rehabNextMonth = parseAmount(document.getElementById('mdr-rehab-next')?.value || 0);
+      const testAmount = parseAmount(document.getElementById('mdr-test')?.value || 0);
       const canteen = parseAmount(document.getElementById('mdr-canteen')?.value || 0);
       const laundry = parseAmount(document.getElementById('mdr-laundry')?.value || 0);
+      const barbarAmount = parseAmount(document.getElementById('mdr-barbar')?.value || 0);
+      const medicineAmount = parseAmount(document.getElementById('mdr-medicine')?.value || 0);
       const other = parseAmount(document.getElementById('mdr-other')?.value || 0);
       const received = parseAmount(document.getElementById('mdr-received')?.value || 0);
 
       const feeAmount = Math.round((monthlyFee / 30) * Math.max(1, stay || 0));
-      const gross = feeAmount + canteen + laundry + other;
+      const gross = feeAmount + rehabNextMonth + testAmount + canteen + laundry + barbarAmount + medicineAmount + other;
       const balance = gross - received;
 
       const feeEl = document.getElementById('mdr-fee-amount');
@@ -6939,6 +6943,7 @@
         patient_id: document.getElementById('mdr-patient-id').value || '',
         patient_name: document.getElementById('mdr-name').value,
         father_name: document.getElementById('mdr-father').value,
+        age: document.getElementById('mdr-age').value,
         cnic: document.getElementById('mdr-cnic').value,
         contact_no: document.getElementById('mdr-contact').value,
         area: document.getElementById('mdr-area').value,
@@ -6948,8 +6953,12 @@
         stay_days: parseAmount(document.getElementById('mdr-stay-days').value),
         monthly_fee: parseAmount(document.getElementById('mdr-monthly-fee').value),
         fee_amount: parseAmount(document.getElementById('mdr-fee-amount').value),
+        rehab_next_month_amount: parseAmount(document.getElementById('mdr-rehab-next').value),
+        test_amount: parseAmount(document.getElementById('mdr-test').value),
         canteen_amount: parseAmount(document.getElementById('mdr-canteen').value),
         laundry_amount: parseAmount(document.getElementById('mdr-laundry').value),
+        barbar_amount: parseAmount(document.getElementById('mdr-barbar').value),
+        medicine_amount: parseAmount(document.getElementById('mdr-medicine').value),
         other_amount: parseAmount(document.getElementById('mdr-other').value),
         received_amount: parseAmount(document.getElementById('mdr-received').value),
         notes: document.getElementById('mdr-notes').value
@@ -6965,6 +6974,7 @@
       setVal('mdr-patient-id', data.patient_id || '');
       setVal('mdr-name', data.patient_name || data.name || '');
       setVal('mdr-father', data.father_name || data.fatherName || '');
+      setVal('mdr-age', data.age || '');
       setVal('mdr-cnic', data.cnic || '');
       setVal('mdr-contact', data.contact_no || data.contactNo || '');
       setVal('mdr-area', data.area || '');
@@ -6974,8 +6984,12 @@
       setVal('mdr-stay-days', data.stay_days || 1);
       setVal('mdr-monthly-fee', data.monthly_fee || data.monthlyFee || 0);
       setVal('mdr-fee-amount', data.fee_amount || 0);
+      setVal('mdr-rehab-next', data.rehab_next_month_amount || 0);
+      setVal('mdr-test', data.test_amount || 0);
       setVal('mdr-canteen', data.canteen_amount || data.canteenSpent || 0);
       setVal('mdr-laundry', data.laundry_amount || data.laundryAmount || 0);
+      setVal('mdr-barbar', data.barbar_amount || 0);
+      setVal('mdr-medicine', data.medicine_amount || 0);
       setVal('mdr-other', data.other_amount || 0);
       setVal('mdr-received', data.received_amount || data.receivedAmount || 0);
       setVal('mdr-notes', data.notes || '');
@@ -7009,6 +7023,22 @@
       filtered.forEach((p, index) => {
         const pid = String(p._id || p.id || '');
         const draft = manualDischargeDraftByPatient[pid] || {};
+
+        // Calculate defaults
+        const admissionDateObj = p.admissionDate ? new Date(p.admissionDate + 'T00:00:00') : new Date();
+        const dischargeDateObj = new Date();
+        const diff = Math.floor((dischargeDateObj - admissionDateObj) / (1000 * 60 * 60 * 24));
+        const autoStayDays = Math.max(1, diff >= 0 ? diff : 0);
+        
+        const autoMonthlyFee = p.monthlyFee || 0;
+        const autoCanteen = p.canteenSpent || 0;
+        const autoReceived = p.receivedAmount || 0;
+
+        const stay_days = draft.stay_days !== undefined ? draft.stay_days : autoStayDays;
+        const monthly_fee = draft.monthly_fee !== undefined ? draft.monthly_fee : autoMonthlyFee;
+        const canteen_amount = draft.canteen_amount !== undefined ? draft.canteen_amount : autoCanteen;
+        const received_amount = draft.received_amount !== undefined ? draft.received_amount : autoReceived;
+
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-emerald-50/40';
         tr.innerHTML = `
@@ -7018,15 +7048,20 @@
             <div class="text-[10px] text-gray-500">${p.contactNo || p.contact || p.phone || ''}</div>
           </td>
           <td class="px-2 py-2 text-gray-600">${p.admissionDate ? formatDisplayDate(p.admissionDate) : '-'}</td>
-          <td class="px-2 py-2"><input type="number" min="1" value="${draft.stay_days || ''}" placeholder="-" class="w-16 border rounded px-1.5 py-1 text-xs" oninput="setManualDischargeDraft('${pid}','stay_days',this.value)" /></td>
-          <td class="px-2 py-2"><input type="number" value="${draft.monthly_fee || ''}" placeholder="-" class="w-20 border rounded px-1.5 py-1 text-xs" oninput="setManualDischargeDraft('${pid}','monthly_fee',this.value)" /></td>
-          <td class="px-2 py-2"><input type="number" value="${draft.canteen_amount || ''}" placeholder="-" class="w-20 border rounded px-1.5 py-1 text-xs" oninput="setManualDischargeDraft('${pid}','canteen_amount',this.value)" /></td>
-          <td class="px-2 py-2"><input type="number" value="${draft.laundry_amount || ''}" placeholder="-" class="w-20 border rounded px-1.5 py-1 text-xs" oninput="setManualDischargeDraft('${pid}','laundry_amount',this.value)" /></td>
-          <td class="px-2 py-2"><input type="number" value="${draft.other_amount || ''}" placeholder="-" class="w-20 border rounded px-1.5 py-1 text-xs" oninput="setManualDischargeDraft('${pid}','other_amount',this.value)" /></td>
-          <td class="px-2 py-2"><input type="number" value="${draft.received_amount || ''}" placeholder="-" class="w-20 border rounded px-1.5 py-1 text-xs" oninput="setManualDischargeDraft('${pid}','received_amount',this.value)" /></td>
-          <td class="px-2 py-2 text-center">
-            <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold"
-              onclick="openManualDischargeFromPatientDraft('${pid}')">Fill Form</button>
+          <td class="px-1 py-2"><input type="number" min="1" value="${stay_days}" placeholder="-" class="w-12 border rounded px-1 min-w-[3rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','stay_days',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="1" value="${stay_days}" placeholder="-" class="w-12 border rounded px-1 min-w-[3rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','stay_days',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${monthly_fee}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','monthly_fee',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${draft.rehab_next_month_amount || ''}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','rehab_next_month_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${draft.test_amount || ''}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','test_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${canteen_amount}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','canteen_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${draft.laundry_amount || ''}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','laundry_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${draft.barbar_amount || ''}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','barbar_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${draft.medicine_amount || ''}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','medicine_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${draft.other_amount || ''}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','other_amount',this.value)" /></td>
+          <td class="px-1 py-2"><input type="number" min="0" value="${received_amount}" placeholder="-" class="w-16 border rounded px-1 min-w-[4rem] py-1 text-xs" oninput="setManualDischargeDraft('${pid}','received_amount',this.value)" /></td>
+          <td class="px-1 py-2 text-center">
+            <button class="bg-gray-900 hover:bg-black text-white px-2 py-1.5 rounded-lg text-[10px] whitespace-nowrap font-black uppercase tracking-wide border border-gray-900"
+              onclick="autoSaveAndPrintManualDischarge('${pid}')"><i class="fas fa-print mr-1"></i>Print Invoice</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -7048,6 +7083,7 @@
         patient_id: pid,
         patient_name: p.name || '',
         father_name: p.fatherName || '',
+        age: p.age || '',
         cnic: p.cnic || '',
         contact_no: p.contactNo || p.contact || p.phone || '',
         area: p.area || '',
@@ -7056,8 +7092,12 @@
         discharge_date: dischargeDate,
         stay_days: draft.stay_days || 1,
         monthly_fee: draft.monthly_fee || p.monthlyFee || 0,
+        rehab_next_month_amount: draft.rehab_next_month_amount || 0,
+        test_amount: draft.test_amount || 0,
         canteen_amount: draft.canteen_amount || 0,
         laundry_amount: draft.laundry_amount || 0,
+        barbar_amount: draft.barbar_amount || 0,
+        medicine_amount: draft.medicine_amount || 0,
         other_amount: draft.other_amount || 0,
         received_amount: draft.received_amount || 0
       });
@@ -7082,6 +7122,7 @@
         patient_id: p._id || p.id,
         patient_name: p.name || '',
         father_name: p.fatherName || '',
+        age: p.age || '',
         cnic: p.cnic || '',
         contact_no: p.contactNo || p.contact || p.phone || '',
         area: p.area || '',
@@ -7090,10 +7131,106 @@
         discharge_date: dischargeDate,
         stay_days: stayDays,
         monthly_fee: parseAmount(p.monthlyFee || 0),
+        rehab_next_month_amount: 0,
+        test_amount: 0,
         canteen_amount: parseAmount(p.canteenSpent || 0),
         laundry_amount: p.laundryStatus ? parseAmount(p.laundryAmount || 0) : 0,
+        barbar_amount: 0,
+        medicine_amount: 0,
+        other_amount: 0,
         received_amount: parseAmount(p.receivedAmount || 0)
       });
+    }
+
+    async function autoSaveAndPrintManualDischarge(patientId) {
+      const pid = String(patientId || '');
+      const p = (patientsData || []).find((x) => String(x._id || x.id) === pid);
+      if (!p) {
+        showSuccessModal('Patient not found.', true);
+        return;
+      }
+
+      const draft = manualDischargeDraftByPatient[pid] || {};
+
+      // Defaults
+      const admissionDate = p.admissionDate ? new Date(p.admissionDate + 'T00:00:00') : new Date();
+      const dischargeDate = new Date();
+      const diff = Math.floor((dischargeDate - admissionDate) / (1000 * 60 * 60 * 24));
+      const autoStayDays = Math.max(1, diff >= 0 ? diff : 0);
+      
+      const autoMonthlyFee = p.monthlyFee || 0;
+      const autoCanteen = p.canteenSpent || 0;
+      const autoReceived = p.receivedAmount || 0;
+
+      const stayDaysRaw = draft.stay_days !== undefined ? draft.stay_days : autoStayDays;
+      const monthlyFeeRaw = draft.monthly_fee !== undefined ? draft.monthly_fee : autoMonthlyFee;
+      
+      // Compute Rehab Amount per day
+      const stayDays = Math.max(1, parseInt(stayDaysRaw) || 1);
+      const monthlyFee = parseAmount(monthlyFeeRaw);
+      const feeAmount = Math.round((monthlyFee / 30) * stayDays);
+
+      const payload = {
+        patient_id: p._id || p.id,
+        patient_name: p.name || '',
+        father_name: p.fatherName || '',
+        age: p.age || '',
+        cnic: p.cnic || '',
+        contact_no: p.contactNo || p.contact || p.phone || '',
+        area: p.area || '',
+        address: p.address || '',
+        admission_date: p.admissionDate || '',
+        discharge_date: new Date().toISOString().split('T')[0],
+        stay_days: stayDays,
+        monthly_fee: monthlyFee,
+        fee_amount: feeAmount,
+        rehab_next_month_amount: parseAmount(draft.rehab_next_month_amount || 0),
+        test_amount: parseAmount(draft.test_amount || 0),
+        canteen_amount: parseAmount(draft.canteen_amount !== undefined ? draft.canteen_amount : autoCanteen),
+        laundry_amount: parseAmount(draft.laundry_amount || 0),
+        barbar_amount: parseAmount(draft.barbar_amount || 0),
+        medicine_amount: parseAmount(draft.medicine_amount || 0),
+        other_amount: parseAmount(draft.other_amount || 0),
+        received_amount: parseAmount(draft.received_amount !== undefined ? draft.received_amount : autoReceived)
+      };
+
+      try {
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Saving...';
+        btn.disabled = true;
+
+        const res = await fetch('/api/manual-discharge-receipts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          showSuccessModal('Failed to save manual discharge receipt.', true);
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+          return;
+        }
+
+        const data = await res.json();
+        const savedId = data.id || data._id;
+        
+        await loadManualDischargeReceipts();
+        
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        
+        // Print
+        if (savedId) {
+          printManualDischargeReceipt(savedId);
+        } else {
+          showSuccessModal('Saved, but ID not returned.', true);
+        }
+      } catch (e) {
+        console.error('Save & Print Error:', e);
+        showSuccessModal('Error saving receipt.', true);
+      }
     }
 
     function openManualDischargeModal(row = null) {
@@ -7104,6 +7241,7 @@
       } else {
         fillManualDischargeModal({});
       }
+      calcManualDischargeTotals(); // Ensure totals are updated immediately from draft values
       modal.classList.remove('hidden');
     }
 
@@ -7126,7 +7264,7 @@
       }
 
       manualDischargeRows.forEach((row, idx) => {
-        const gross = parseAmount(row.fee_amount) + parseAmount(row.canteen_amount) + parseAmount(row.laundry_amount) + parseAmount(row.other_amount);
+        const gross = parseAmount(row.fee_amount) + parseAmount(row.rehab_next_month_amount) + parseAmount(row.test_amount) + parseAmount(row.canteen_amount) + parseAmount(row.laundry_amount) + parseAmount(row.barbar_amount) + parseAmount(row.medicine_amount) + parseAmount(row.other_amount);
         const balance = parseAmount(row.net_balance);
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-emerald-50/40';
@@ -7232,48 +7370,141 @@
       const content = document.getElementById('manual-discharge-print-content');
       if (!content) return;
       content.innerHTML = `
-        <div class="bg-white p-6 max-w-3xl mx-auto text-gray-800">
-          <div class="flex justify-between items-end border-b-4 border-gray-900 pb-4 mb-6">
-            <div>
-              <h1 class="text-2xl font-extrabold text-gray-900">PRO Hospital</h1>
-              <p class="text-xs text-gray-500">Manual Discharge Receipt</p>
+        <div class="bg-white max-w-3xl mx-auto text-gray-800 font-sans" style="padding: 40px;">
+          <!-- Header Layout -->
+          <div class="flex items-center justify-between mb-8">
+            <div class="w-24">
+              <i class="fas fa-brain text-[#0b7454]" style="font-size: 60px;"></i>
             </div>
-            <div class="text-right text-xs">
-              <div><span class="font-semibold">Print Date:</span> ${new Date().toLocaleDateString('en-PK')}</div>
-              <div><span class="font-semibold">Discharge Date:</span> ${row.discharge_date || '-'}</div>
+            <div class="text-center flex-1">
+              <h1 class="font-extrabold text-[#0b7454] tracking-wider" style="font-size: 36px; line-height: 1;">PRO</h1>
+              <p class="font-bold text-gray-800 tracking-wide mt-1" style="font-size: 13px;">PAKISTAN RECOVERY OASIS</p>
+              <div class="border-t border-gray-400 mt-1 mb-1 w-2/3 mx-auto"></div>
+              <p class="text-[9px] text-gray-600 tracking-wide uppercase">Addiction Treatment & Psychological Services</p>
+              
+              <div class="mt-4 text-xs">
+                <p>Addiction Treatment & Psychological Services</p>
+                <p>Lahore, Pakistan</p>
+                <p class="font-bold text-[#0b7454] mt-1"><i class="fas fa-phone-alt mr-1"></i>+92 339 9123489</p>
+              </div>
+            </div>
+            <div class="w-24"></div> <!-- Spacer -->
+          </div>
+
+          <!-- Patient Details -->
+          <div class="border-2 border-[#0b7454] rounded-lg mb-6 overflow-hidden">
+            <div class="grid grid-cols-2 divide-x-2 divide-gray-200 text-sm">
+              <div class="px-3 py-2 border-b-2 border-gray-200 bg-gray-50 flex items-center">
+                <span class="font-bold w-32 text-gray-900">Patient Name:</span> <span class="text-gray-700">${row.patient_name || '-'}</span>
+              </div>
+              <div class="px-3 py-2 border-b-2 border-gray-200 bg-gray-50 flex items-center">
+                <span class="font-bold w-24 text-gray-900">S/O,D/O:</span> <span class="text-gray-700">${row.father_name || '-'}</span>
+              </div>
+              
+              <div class="px-3 py-2 border-b-2 border-gray-200 flex items-center">
+                <span class="font-bold w-32 text-gray-900">Age:</span> <span class="text-gray-700">${row.age || '-'}</span>
+              </div>
+              <div class="px-3 py-2 border-b-2 border-gray-200 flex items-center">
+                <span class="font-bold w-36 text-gray-900">Date of Admission:</span> <span class="text-gray-700">${row.admission_date ? new Date(row.admission_date).toLocaleDateString('en-GB').replace(/\//g, '-') : '-'}</span>
+              </div>
+              
+              <div class="px-3 py-2 bg-gray-50 flex items-center">
+                <span class="font-bold w-36 text-gray-900">Date of Discharge:</span> <span class="text-gray-700">${row.discharge_date ? new Date(row.discharge_date).toLocaleDateString('en-GB').replace(/\//g, '-') : '-'}</span>
+              </div>
+              <div class="px-3 py-2 bg-gray-50 flex items-center">
+                <span class="font-bold w-28 text-gray-900">Total Days:</span> <span class="text-gray-700">${row.stay_days || 0}</span>
+              </div>
             </div>
           </div>
-          <div class="grid grid-cols-2 gap-x-8 gap-y-2 text-sm mb-4">
-            <div><span class="text-gray-500">Patient:</span> <span class="font-semibold">${row.patient_name || '-'}</span></div>
-            <div><span class="text-gray-500">Father/Guardian:</span> <span class="font-semibold">${row.father_name || '-'}</span></div>
-            <div><span class="text-gray-500">CNIC:</span> <span class="font-semibold">${row.cnic || '-'}</span></div>
-            <div><span class="text-gray-500">Contact:</span> <span class="font-semibold">${row.contact_no || '-'}</span></div>
-            <div><span class="text-gray-500">Admission:</span> <span class="font-semibold">${row.admission_date || '-'}</span></div>
-            <div><span class="text-gray-500">Stay:</span> <span class="font-semibold">${row.stay_days || 0} Days</span></div>
-            <div class="col-span-2"><span class="text-gray-500">Address/Area:</span> <span class="font-semibold">${row.area || row.address || '-'}</span></div>
+
+          <!-- Title -->
+          <div class="text-center mb-4">
+            <h2 class="inline-block font-extrabold text-2xl border-b-2 border-gray-900 pb-1">Patient Bill</h2>
           </div>
-          <table class="w-full border text-sm mb-4">
-            <thead class="bg-gray-100">
+
+          <!-- Bill Table -->
+          <table class="w-full text-sm border-collapse border border-gray-400">
+            <thead class="bg-[#0b7454] text-white">
               <tr>
-                <th class="border px-3 py-2 text-left">Description</th>
-                <th class="border px-3 py-2 text-right">Amount (PKR)</th>
+                <th class="border border-gray-400 px-4 py-2 text-center w-16 font-semibold">Sr.</th>
+                <th class="border border-gray-400 px-4 py-2 text-center font-semibold">Description</th>
+                <th class="border border-gray-400 px-4 py-2 text-center w-48 font-semibold">Amount</th>
               </tr>
             </thead>
             <tbody>
-              <tr><td class="border px-3 py-2">Stay/Fee Amount</td><td class="border px-3 py-2 text-right">${formatNumber(fee)}</td></tr>
-              <tr><td class="border px-3 py-2">Canteen</td><td class="border px-3 py-2 text-right">${formatNumber(canteen)}</td></tr>
-              <tr><td class="border px-3 py-2">Laundry</td><td class="border px-3 py-2 text-right">${formatNumber(laundry)}</td></tr>
-              <tr><td class="border px-3 py-2">Other Charges</td><td class="border px-3 py-2 text-right">${formatNumber(other)}</td></tr>
-              <tr><td class="border px-3 py-2 font-bold">Gross Total</td><td class="border px-3 py-2 text-right font-bold">${formatNumber(gross)}</td></tr>
-              <tr><td class="border px-3 py-2">Received</td><td class="border px-3 py-2 text-right">${formatNumber(received)}</td></tr>
-              <tr><td class="border px-3 py-2 font-bold">${balance >= 0 ? 'Balance Due' : 'Refund'}</td><td class="border px-3 py-2 text-right font-bold">${formatNumber(Math.abs(balance))}</td></tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Rehab Charges</td>
+                <td class="border border-gray-400 px-4 py-2">${fee ? formatNumber(fee) + '/-' : ''}</td>
+              </tr>
+              <tr class="bg-gray-50">
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium">Rehab Charges <span class="text-[10px] text-gray-500 font-normal">(Next Month)</span></td>
+                <td class="border border-gray-400 px-4 py-2">${parseAmount(row.rehab_next_month_amount) ? formatNumber(parseAmount(row.rehab_next_month_amount)) + '/-' : ''}</td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Test</td>
+                <td class="border border-gray-400 px-4 py-2">${parseAmount(row.test_amount) ? formatNumber(parseAmount(row.test_amount)) + '/-' : ''}</td>
+              </tr>
+              <tr class="bg-gray-50">
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Laundry</td>
+                <td class="border border-gray-400 px-4 py-2">${laundry ? formatNumber(laundry) + '/-' : ''}</td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Barbar</td>
+                <td class="border border-gray-400 px-4 py-2">${parseAmount(row.barbar_amount) ? formatNumber(parseAmount(row.barbar_amount)) + '/-' : ''}</td>
+              </tr>
+              <tr class="bg-gray-50">
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Canteen</td>
+                <td class="border border-gray-400 px-4 py-2">${canteen ? formatNumber(canteen) + '/-' : ''}</td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Medicine</td>
+                <td class="border border-gray-400 px-4 py-2">${parseAmount(row.medicine_amount) ? formatNumber(parseAmount(row.medicine_amount)) + '/-' : ''}</td>
+              </tr>
+              <tr class="bg-[#eef5f3]">
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Others/Old</td>
+                <td class="border border-gray-400 px-4 py-2">${other ? formatNumber(other) + '/-' : ''}</td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-bold tracking-wide text-gray-900">Total</td>
+                <td class="border border-gray-400 px-4 py-2 font-bold text-gray-900">${gross ? formatNumber(gross) + '/-' : ''}</td>
+              </tr>
+              <tr class="bg-[#eef5f3]">
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-medium tracking-wide">Received</td>
+                <td class="border border-gray-400 px-4 py-2">${received ? formatNumber(received) + '/-' : ''}</td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center"></td>
+                <td class="border border-gray-400 px-4 py-2 font-extrabold text-gray-900 tracking-wide">Remaining</td>
+                <td class="border border-gray-400 px-4 py-2 font-extrabold text-gray-900 tracking-wide">${formatNumber(balance)}/-</td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center">&nbsp;</td>
+                <td class="border border-gray-400 px-4 py-2"></td>
+                <td class="border border-gray-400 px-4 py-2"></td>
+              </tr>
+              <tr class="bg-gray-50">
+                <td class="border border-gray-400 px-4 py-2 text-center">&nbsp;</td>
+                <td class="border border-gray-400 px-4 py-2"></td>
+                <td class="border border-gray-400 px-4 py-2"></td>
+              </tr>
+              <tr>
+                <td class="border border-gray-400 px-4 py-2 text-center">&nbsp;</td>
+                <td class="border border-gray-400 px-4 py-2"></td>
+                <td class="border border-gray-400 px-4 py-2"></td>
+              </tr>
             </tbody>
           </table>
-          <div class="text-xs text-gray-500">${row.notes ? `Notes: ${row.notes}` : ''}</div>
-          <div class="mt-16 flex justify-between text-xs">
-            <div class="w-48 border-t pt-1 text-center">Authorized Signature</div>
-            <div class="w-48 border-t pt-1 text-center">Receiver Signature</div>
-          </div>
+          <div class="mt-4 text-xs text-gray-500">${row.notes ? `<span class="font-bold text-gray-700">Notes:</span> ${row.notes}` : ''}</div>
         </div>
       `;
 
@@ -7897,16 +8128,20 @@
           <table class="min-w-full divide-y divide-gray-100 text-xs">
             <thead class="bg-[#0b7454] text-white">
               <tr>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">#</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Patient</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Admission</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Days</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Fee/Mo</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Canteen</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Laundry</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Other</th>
-                <th class="px-2 py-2 text-left uppercase tracking-wide">Received</th>
-                <th class="px-2 py-2 text-center uppercase tracking-wide">Action</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">#</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Patient</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Admission</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Days</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Fee/Mo</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Next Month</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Test</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Canteen</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Laundry</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Barbar</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Medicine</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Other</th>
+                <th class="px-1 py-2 text-left uppercase tracking-tight text-[10px]">Received</th>
+                <th class="px-1 py-2 text-center uppercase tracking-tight text-[10px]">Action</th>
               </tr>
             </thead>
             <tbody id="manual-discharge-patients-body" class="divide-y divide-gray-50"></tbody>
@@ -9828,6 +10063,10 @@
             <input id="mdr-father" class="w-full border rounded p-2 text-sm" />
           </div>
           <div>
+            <label class="text-xs font-bold text-gray-600 uppercase">Age</label>
+            <input id="mdr-age" type="number" class="w-full border rounded p-2 text-sm" />
+          </div>
+          <div>
             <label class="text-xs font-bold text-gray-600 uppercase">CNIC</label>
             <input id="mdr-cnic" class="w-full border rounded p-2 text-sm" />
           </div>
@@ -9856,13 +10095,18 @@
               oninput="calcManualDischargeTotals()" />
           </div>
           <div>
-            <label class="text-xs font-bold text-gray-600 uppercase">Fee Amount</label>
+            <label class="text-xs font-bold text-gray-600 uppercase">Rehab Amount</label>
             <input id="mdr-fee-amount" type="number" value="0" class="w-full border rounded p-2 text-sm bg-gray-50"
               readonly />
           </div>
           <div>
-            <label class="text-xs font-bold text-gray-600 uppercase">Canteen</label>
-            <input id="mdr-canteen" type="number" value="0" class="w-full border rounded p-2 text-sm"
+            <label class="text-xs font-bold text-gray-600 uppercase">Next Month</label>
+            <input id="mdr-rehab-next" type="number" value="0" class="w-full border rounded p-2 text-sm"
+              oninput="calcManualDischargeTotals()" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-600 uppercase">Test</label>
+            <input id="mdr-test" type="number" value="0" class="w-full border rounded p-2 text-sm"
               oninput="calcManualDischargeTotals()" />
           </div>
           <div>
@@ -9871,19 +10115,34 @@
               oninput="calcManualDischargeTotals()" />
           </div>
           <div>
-            <label class="text-xs font-bold text-gray-600 uppercase">Other Charges</label>
-            <input id="mdr-other" type="number" value="0" class="w-full border rounded p-2 text-sm"
+            <label class="text-xs font-bold text-gray-600 uppercase">Barbar</label>
+            <input id="mdr-barbar" type="number" value="0" class="w-full border rounded p-2 text-sm"
               oninput="calcManualDischargeTotals()" />
           </div>
           <div>
-            <label class="text-xs font-bold text-gray-600 uppercase">Received</label>
-            <input id="mdr-received" type="number" value="0" class="w-full border rounded p-2 text-sm"
+            <label class="text-xs font-bold text-gray-600 uppercase">Canteen</label>
+            <input id="mdr-canteen" type="number" value="0" class="w-full border rounded p-2 text-sm"
+              oninput="calcManualDischargeTotals()" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-600 uppercase">Medicine</label>
+            <input id="mdr-medicine" type="number" value="0" class="w-full border rounded p-2 text-sm"
+              oninput="calcManualDischargeTotals()" />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-600 uppercase">Other/Old Charges</label>
+            <input id="mdr-other" type="number" value="0" class="w-full border rounded p-2 text-sm"
               oninput="calcManualDischargeTotals()" />
           </div>
           <div>
             <label class="text-xs font-bold text-gray-600 uppercase">Gross Total</label>
             <input id="mdr-gross" type="number" value="0" class="w-full border rounded p-2 text-sm bg-gray-50"
               readonly />
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-600 uppercase">Received</label>
+            <input id="mdr-received" type="number" value="0" class="w-full border rounded p-2 text-sm"
+              oninput="calcManualDischargeTotals()" />
           </div>
           <div>
             <label class="text-xs font-bold text-gray-600 uppercase">Net Balance</label>

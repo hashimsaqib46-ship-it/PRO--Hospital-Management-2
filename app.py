@@ -3155,6 +3155,7 @@ def _serialize_manual_receipt(doc):
         'patient_id': str(doc.get('patient_id')) if doc.get('patient_id') else '',
         'patient_name': doc.get('patient_name', ''),
         'father_name': doc.get('father_name', ''),
+        'age': doc.get('age', ''),
         'cnic': doc.get('cnic', ''),
         'contact_no': doc.get('contact_no', ''),
         'area': doc.get('area', ''),
@@ -3164,8 +3165,12 @@ def _serialize_manual_receipt(doc):
         'stay_days': doc.get('stay_days', 0),
         'monthly_fee': doc.get('monthly_fee', 0),
         'fee_amount': doc.get('fee_amount', 0),
+        'rehab_next_month_amount': doc.get('rehab_next_month_amount', 0),
+        'test_amount': doc.get('test_amount', 0),
         'canteen_amount': doc.get('canteen_amount', 0),
         'laundry_amount': doc.get('laundry_amount', 0),
+        'barbar_amount': doc.get('barbar_amount', 0),
+        'medicine_amount': doc.get('medicine_amount', 0),
         'other_amount': doc.get('other_amount', 0),
         'received_amount': doc.get('received_amount', 0),
         'net_balance': doc.get('net_balance', 0),
@@ -3218,11 +3223,15 @@ def create_manual_discharge_receipt():
         now = datetime.now()
 
         fee_amount = _safe_int_amount(data.get('fee_amount'))
+        rehab_next_month_amount = _safe_int_amount(data.get('rehab_next_month_amount'))
+        test_amount = _safe_int_amount(data.get('test_amount'))
         canteen_amount = _safe_int_amount(data.get('canteen_amount'))
         laundry_amount = _safe_int_amount(data.get('laundry_amount'))
+        barbar_amount = _safe_int_amount(data.get('barbar_amount'))
+        medicine_amount = _safe_int_amount(data.get('medicine_amount'))
         other_amount = _safe_int_amount(data.get('other_amount'))
         received_amount = _safe_int_amount(data.get('received_amount'))
-        gross_total = fee_amount + canteen_amount + laundry_amount + other_amount
+        gross_total = fee_amount + rehab_next_month_amount + test_amount + canteen_amount + laundry_amount + barbar_amount + medicine_amount + other_amount
         net_balance = gross_total - received_amount
 
         patient_id = data.get('patient_id') or ''
@@ -3235,6 +3244,7 @@ def create_manual_discharge_receipt():
             'patient_id': patient_id,
             'patient_name': data.get('patient_name', ''),
             'father_name': data.get('father_name', ''),
+            'age': data.get('age', ''),
             'cnic': data.get('cnic', ''),
             'contact_no': data.get('contact_no', ''),
             'area': data.get('area', ''),
@@ -3244,8 +3254,12 @@ def create_manual_discharge_receipt():
             'stay_days': _safe_int_amount(data.get('stay_days')),
             'monthly_fee': _safe_int_amount(data.get('monthly_fee')),
             'fee_amount': fee_amount,
+            'rehab_next_month_amount': rehab_next_month_amount,
+            'test_amount': test_amount,
             'canteen_amount': canteen_amount,
             'laundry_amount': laundry_amount,
+            'barbar_amount': barbar_amount,
+            'medicine_amount': medicine_amount,
             'other_amount': other_amount,
             'received_amount': received_amount,
             'net_balance': net_balance,
@@ -3269,11 +3283,15 @@ def update_manual_discharge_receipt(id):
     try:
         data = clean_input_data(request.json or {})
         fee_amount = _safe_int_amount(data.get('fee_amount'))
+        rehab_next_month_amount = _safe_int_amount(data.get('rehab_next_month_amount'))
+        test_amount = _safe_int_amount(data.get('test_amount'))
         canteen_amount = _safe_int_amount(data.get('canteen_amount'))
         laundry_amount = _safe_int_amount(data.get('laundry_amount'))
+        barbar_amount = _safe_int_amount(data.get('barbar_amount'))
+        medicine_amount = _safe_int_amount(data.get('medicine_amount'))
         other_amount = _safe_int_amount(data.get('other_amount'))
         received_amount = _safe_int_amount(data.get('received_amount'))
-        gross_total = fee_amount + canteen_amount + laundry_amount + other_amount
+        gross_total = fee_amount + rehab_next_month_amount + test_amount + canteen_amount + laundry_amount + barbar_amount + medicine_amount + other_amount
         net_balance = gross_total - received_amount
 
         patient_id = data.get('patient_id') or ''
@@ -3286,6 +3304,7 @@ def update_manual_discharge_receipt(id):
             'patient_id': patient_id,
             'patient_name': data.get('patient_name', ''),
             'father_name': data.get('father_name', ''),
+            'age': data.get('age', ''),
             'cnic': data.get('cnic', ''),
             'contact_no': data.get('contact_no', ''),
             'area': data.get('area', ''),
@@ -3295,8 +3314,12 @@ def update_manual_discharge_receipt(id):
             'stay_days': _safe_int_amount(data.get('stay_days')),
             'monthly_fee': _safe_int_amount(data.get('monthly_fee')),
             'fee_amount': fee_amount,
+            'rehab_next_month_amount': rehab_next_month_amount,
+            'test_amount': test_amount,
             'canteen_amount': canteen_amount,
             'laundry_amount': laundry_amount,
+            'barbar_amount': barbar_amount,
+            'medicine_amount': medicine_amount,
             'other_amount': other_amount,
             'received_amount': received_amount,
             'net_balance': net_balance,
