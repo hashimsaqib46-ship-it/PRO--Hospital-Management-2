@@ -410,6 +410,20 @@ def create_user():
         return jsonify({"message": "User created", "id": str(result.inserted_id)}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@app.route('/api/users/<id>', methods=['DELETE'])
+@role_required(['Admin'])
+def delete_user(id):
+    if not check_db(): return jsonify({"error": "Database error"}), 500
+    try:
+        # Prevent deleting the main admin
+        user = mongo.db.users.find_one({'_id': ObjectId(id)})
+        if user and user.get('username') == 'ImranSaab':
+            return jsonify({"error": "Main admin cannot be deleted"}), 403
+            
+        mongo.db.users.delete_one({'_id': ObjectId(id)})
+        return jsonify({"message": "User deleted"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # @app.route('/api/patients/<id>', methods=['DELETE'])
 # @role_required(['Admin'])
