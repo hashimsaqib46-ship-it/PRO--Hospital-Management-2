@@ -8116,15 +8116,15 @@
         style="display: none">
         Attendance
       </button>
-      <button id="nav-accounts" onclick="window.navigateTo('accounts-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
-        style="display: none">
-        <i class="fas fa-archive mr-2"></i>ARCHIVE
-      </button>
       <button id="nav-prescription" onclick="openPrescriptionModal()"
         class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
         style="display: none">
         <i class="fas fa-file-prescription mr-2"></i> Generate Prescription
+      </button>
+      <button id="nav-accounts" onclick="window.navigateTo('accounts-view')"
+        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        style="display: none">
+        <i class="fas fa-archive mr-2"></i>ARCHIVE
       </button>
     </nav>
     <div class="p-4 border-t border-emerald-100 flex-none">
@@ -8645,8 +8645,8 @@
         </div>
       </div>
       <div class="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden">
-        <div class="w-full patients-table-scroll table-scroll-shell" style="--table-scroll-max-height: 34rem;">
-          <table class="patients-directory-table w-full table-fixed divide-y divide-gray-100" style="font-size: 0.68rem;">
+        <div class="w-full patients-table-scroll table-scroll-shell overflow-x-auto overflow-y-auto" style="--table-scroll-max-height: 34rem;">
+          <table class="patients-directory-table w-full min-w-[1000px] divide-y divide-gray-100" style="font-size: 0.68rem;">
             <thead id="patients-table-headers" class="bg-[#0b7454] text-white">
               <tr>
                 <th
@@ -9357,9 +9357,25 @@
             Track monthly stats, patient counts, and financial performance.
           </p>
         </div>
-        <!-- Month Selection List -->
-        <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide max-w-full md:max-w-2xl" id="inventory-month-list">
-          <!-- Populated by JS -->
+        <!-- Month/Year Selector -->
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="monthly-overheads-month-select" onchange="window.loadMonthlyOverheadsTable()"
+            class="border border-emerald-200 rounded-lg px-3 py-2 bg-white text-emerald-900 font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition cursor-pointer">
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="5">May</option>
+            <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+          </select>
+          <select id="monthly-overheads-year-select" onchange="window.loadMonthlyOverheadsTable()"
+            class="border border-emerald-200 rounded-lg px-3 py-2 bg-white text-emerald-900 font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm transition cursor-pointer"></select>
         </div>
       </div>
 
@@ -9384,38 +9400,8 @@
       </div>
 
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <!-- Month/Year Selector -->
-        <div class="flex flex-wrap items-center gap-4 mb-6">
-          <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Month</label>
-            <select id="monthly-overheads-month-select"
-              class="border border-gray-300 rounded px-3 py-2 bg-gray-50 focus:ring-2 focus:ring-green-500 focus:border-green-500">
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Year</label>
-            <select id="monthly-overheads-year-select"
-              class="border border-gray-300 rounded px-3 py-2 bg-gray-50 focus:ring-2 focus:ring-green-500 focus:border-green-500"></select>
-          </div>
-          <div class="mt-5">
-            <button onclick="loadMonthlyOverheadsTable()"
-              class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-semibold shadow-md transition">
-              <i class="fas fa-sync-alt mr-2"></i> Load
-            </button>
-          </div>
-          <div class="ml-auto mt-5 flex flex-col md:flex-row gap-3">
+        <div class="flex items-center justify-end mb-6">
+          <div class="ml-auto mt-2 flex flex-col md:flex-row gap-3">
             <div id="monthly-overheads-profit-display" class="text-right">
               <!-- Profit display will be inserted here -->
             </div>
