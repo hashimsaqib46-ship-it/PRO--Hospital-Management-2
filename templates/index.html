@@ -8062,79 +8062,70 @@
         <i class="fas fa-times text-xl"></i>
       </button>
     </div>
-    <div class="p-4 text-xs bg-emerald-50 border-b border-emerald-100 font-semibold text-emerald-800"
-      id="logged-in-user">
-      Guest
-    </div>
-    <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+    <nav class="flex-1 p-4 space-y-1 overflow-hidden">
       <button id="nav-dash" onclick="window.navigateTo('dashboard-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg bg-emerald-200/80 text-emerald-900 shadow-sm border border-emerald-200 transition">
-        Dashboard
+        class="nav-item w-full text-left px-4 py-2 rounded-lg bg-emerald-200/80 text-emerald-900 shadow-sm border border-emerald-200 transition flex items-center whitespace-nowrap text-sm">
+        <i class="fas fa-home mr-3 w-5 text-center"></i> Dashboard
       </button>
       <button id="nav-patients" onclick="window.navigateTo('patients-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        Patients Directory
+        <i class="fas fa-user-injured mr-3 w-5 text-center"></i> Patients Directory
       </button>
       <button id="nav-canteen" onclick="window.navigateTo('canteen-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        Canteen
+        <i class="fas fa-utensils mr-3 w-5 text-center"></i> Canteen
       </button>
-      <!-- <button id="nav-expenses" onclick="window.navigateTo('expenses-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
-        style="display: none">
-        Expenses
-      </button> -->
       <button id="nav-users" onclick="window.navigateTo('user-management-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        User Management
+        <i class="fas fa-user-shield mr-3 w-5 text-center"></i> User Management
       </button>
       <button id="nav-psych-sessions" onclick="window.navigateTo('psych-sessions-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        Psych Sessions
+        <i class="fas fa-brain mr-3 w-5 text-center"></i> Psych Sessions
       </button>
       <button id="nav-overheads-finance" onclick="window.navigateTo('overheads-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        <i class="fas fa-coins mr-2"></i>Overheads & Finance
+        <i class="fas fa-coins mr-3 w-5 text-center"></i> Finance & Overheads
       </button>
       <button id="nav-manual-discharge" onclick="window.navigateTo('manual-discharge-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        <i class="fas fa-file-medical mr-2"></i>Manual Discharge Receipt
+        <i class="fas fa-file-medical mr-3 w-5 text-center"></i> Manual Receipt
       </button>
       <button id="nav-monthly-overheads" onclick="window.navigateTo('monthly-overheads-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        <i class="fas fa-boxes mr-2"></i>Inventory
+        <i class="fas fa-boxes mr-3 w-5 text-center"></i> Inventory
       </button>
       <button id="nav-attendance" onclick="window.navigateTo('attendance-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        Attendance
+        <i class="fas fa-calendar-check mr-3 w-5 text-center"></i> Attendance
       </button>
       <button id="nav-prescription" onclick="openPrescriptionModal()"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm"
         style="display: none">
-        <i class="fas fa-file-prescription mr-2"></i> Generate Prescription
+        <i class="fas fa-file-prescription mr-3 w-5 text-center"></i> Generate Prescription
       </button>
       <button id="nav-accounts" onclick="window.navigateTo('accounts-view')"
-        class="nav-item w-full text-left px-4 py-3 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition"
+        class="nav-item w-full text-left px-4 py-2 rounded-lg text-emerald-800 hover:bg-emerald-100/80 border border-transparent transition flex items-center whitespace-nowrap text-sm font-bold"
         style="display: none">
-        <i class="fas fa-archive mr-2"></i>ARCHIVE
+        <i class="fas fa-archive mr-3 w-5 text-center"></i> ARCHIVE
       </button>
     </nav>
-    <div class="p-4 border-t border-emerald-100 flex-none">
+    <div class="p-4 border-t-2 border-emerald-200/50 flex-none space-y-1 bg-emerald-50/50">
       <button onclick="document.getElementById('password-modal').classList.remove('hidden')"
-        class="w-full text-left px-4 py-2 text-sm text-emerald-800 hover:text-emerald-900">
-        <i class="fas fa-key mr-2"></i> Password
+        class="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-100/50 rounded-lg transition flex items-center font-bold">
+        <i class="fas fa-key mr-3 w-5 text-center"></i> Password
       </button>
       <button onclick="handleLogout()"
-        class="w-full text-left px-4 py-2 text-sm text-emerald-800 hover:text-emerald-900">
-        <i class="fas fa-sign-out-alt mr-2"></i> Logout
+        class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-100/50 rounded-lg transition flex items-center font-bold">
+        <i class="fas fa-sign-out-alt mr-3 w-5 text-center"></i> Logout
       </button>
     </div>
   </aside>
@@ -8148,20 +8139,34 @@
             Live snapshot across admissions, revenue, and canteen
           </p>
         </div>
-        <div class="text-right">
-          <div
-            class="mb-6 bg-white p-4 rounded-xl shadow-sm border border-emerald-100 flex justify-between items-center gap-3">
-            <button onclick="openReceiptModal()"
-              class="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition shadow flex items-center gap-2">
-              <i class="fas fa-receipt"></i> Generate Receipt
-            </button>
-            <button onclick="openPaymentRecordsModal()"
-              class="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 transition shadow flex items-center gap-2">
-              <i class="fas fa-list-alt"></i> Payment Records
-            </button>
+        <div class="flex flex-col items-end gap-2">
+          <div class="flex items-center gap-4">
+            <!-- Better User Profile Design -->
+            <div class="bg-white border border-emerald-200 px-3 py-1.5 rounded-full shadow-sm flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-inner">
+                 <i class="fas fa-user text-sm"></i>
+              </div>
+              <div class="text-left leading-tight">
+                 <div class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter leading-none">Admin Panel</div>
+                 <div id="logged-in-user" class="text-xs font-black text-emerald-900 leading-none">Guest</div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 bg-white p-1.5 rounded-xl shadow-sm border border-emerald-100">
+              <button onclick="openReceiptModal()"
+                class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700 transition shadow-sm flex items-center gap-2 text-xs">
+                <i class="fas fa-receipt"></i> Receipt
+              </button>
+              <button onclick="openPaymentRecordsModal()"
+                class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-700 transition shadow-sm flex items-center gap-2 text-xs">
+                <i class="fas fa-list-alt"></i> Records
+              </button>
+            </div>
           </div>
-          <div class="text-lg font-semibold text-green-900" id="current-date"></div>
-          <div class="text-sm text-gray-600" id="current-time"></div>
+          <div class="flex items-center gap-2 text-right">
+            <div class="text-sm font-bold text-emerald-800" id="current-date"></div>
+            <div class="text-xs text-gray-500 bg-gray-200/50 px-2 py-0.5 rounded" id="current-time"></div>
+          </div>
         </div>
       </div>
 
