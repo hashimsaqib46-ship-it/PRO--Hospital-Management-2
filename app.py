@@ -2270,6 +2270,64 @@ def get_finance_summary(month, year):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/inventory/stats/<int:month>/<int:year>', methods=['GET'])
+@login_required
+def get_inventory_stats(month, year):
+    """
+    Get inventory stats for a given month/year.
+    Returns: new patient admissions, discharges, total canteen sales.
+    Accessible to all logged-in users.
+    """
+    if not check_db(): return jsonify({"error": "Database error"}), 500
+    try:
+        month_start = datetime(year, month, 1)
+        if month == 12:
+            month_end = datetime(year + 1, 1, 1)
+        else:
+            month_end = datetime(year, month + 1, 1)
+
+        def parse_date(raw):
+            if not raw: return None
+            if isinstance(raw, datetime): return raw
+            try:
+                return datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+            except Exception:
+                try:
+                    return datetime.strptime(str(raw)[:10], '%Y-%m-%d')
+                except Exception:
+                    return None
+
+        all_patients = list(mongo.db.patients.find({}, {
+            'admissionDate': 1, 'isDischarged': 1, 'dischargeDate': 1
+        }))
+
+        new_count = 0
+        discharged_count = 0
+        for p in all_patients:
+            admit = parse_date(p.get('admissionDate'))
+            if admit and month_start <= admit < month_end:
+                new_count += 1
+            if p.get('isDischarged'):
+                disch = parse_date(p.get('dischargeDate'))
+                if disch and month_start <= disch < month_end:
+                    discharged_count += 1
+
+        canteen_result = list(mongo.db.canteen_sales.aggregate([
+            {'$match': {'date': {'$gte': month_start, '$lt': month_end}}},
+            {'$group': {'_id': None, 'total': {'$sum': '$amount'}}}
+        ]))
+        total_canteen = canteen_result[0]['total'] if canteen_result else 0
+
+        return jsonify({
+            'new_patients': new_count,
+            'discharged': discharged_count,
+            'total_canteen_sales': total_canteen
+        })
+    except Exception as e:
+        print(f"Inventory Stats Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/overheads/<int:month>/<int:year>', methods=['GET'])
 @role_required(['Admin'])
 def get_overheads(month, year):
