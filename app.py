@@ -546,12 +546,32 @@ def get_dashboard_metrics():
         canteen_month_res = list(mongo.db.canteen_sales.aggregate(pipeline_month))
         total_canteen_sales_this_month = canteen_month_res[0]['total_sales'] if canteen_month_res else 0
         
+        # 4. Total Expenses This Month (KPI Card)
+        pipeline_expenses = [
+            {'$match': {
+                'type': 'outgoing',
+                'date': {'$gte': start_of_month, '$lt': end_of_month}
+            }},
+            {'$group': {'_id': None, 'total': {'$sum': '$amount'}}}
+        ]
+        expenses_res = list(mongo.db.expenses.aggregate(pipeline_expenses))
+        total_expenses_this_month = expenses_res[0]['total'] if expenses_res else 0
+        
+        # 5. Psychology Sessions Today
+        today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+        total_psych_sessions_today = mongo.db.psych_sessions.count_documents({
+            'date': {'$gte': today_start, '$lt': today_end}
+        })
+        
         return jsonify({
             'totalPatients': total_patients,
             'admissionsThisMonth': admissions_this_month,
             'dischargesThisMonth': discharges_this_month,
-            'totalExpectedBalance': total_expected_balance,  # Changed: now shows remaining balance
-            'totalCanteenSalesThisMonth': total_canteen_sales_this_month
+            'totalExpectedBalance': total_expected_balance,
+            'totalCanteenSalesThisMonth': total_canteen_sales_this_month,
+            'totalExpensesThisMonth': total_expenses_this_month,
+            'totalPsychSessionsToday': total_psych_sessions_today
         })
     except Exception as e:
         print(f"DB Metric Error: {e}")
