@@ -1774,14 +1774,17 @@
       }
 
       const sidebar = document.getElementById('main-sidebar');
+      const topbar = document.getElementById('main-topbar');
 
       if (await checkSession()) {
         updateNavVisibility();
         if (sidebar) sidebar.style.display = ''; // Show sidebar
+        if (topbar) topbar.style.display = ''; // Show topbar
         await fetchPatients();
         window.navigateTo('dashboard-view');
       } else {
         if (sidebar) sidebar.style.display = 'none'; // Ensure hidden
+        if (topbar) topbar.style.display = 'none'; // Hide topbar on login
         window.navigateTo('login-view');
       }
       setLoading(false);
@@ -4332,11 +4335,13 @@
         // Update monthly profit KPI
         const profitEl = document.getElementById('inv-monthly-profit');
         if (profitEl) {
-          // Calculate profit from rendered data
           let totalInc = 0, totalExp = 0;
-          for (const d of Object.values(monthlyOverheadsData)) {
-            totalInc += (d.income || 0);
-            totalExp += (d.total_expense || 0);
+          for (let day = 1; day <= daysInMonth; day++) {
+            const dStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const entry = monthlyOverheadsData[dStr] || {};
+            const canteenVal = entry.canteen_auto != null ? entry.canteen_auto : (monthlyCanteenDailyData[dStr] || 0);
+            totalInc += (entry.income || 0);
+            totalExp += ((entry.kitchen || 0) + canteenVal + (entry.others || 0) + (entry.pay_advance || 0));
           }
           profitEl.innerText = 'Rs ' + formatNumber(totalInc - totalExp);
         }
@@ -4404,23 +4409,33 @@
         const dayName = dayNames[dateObj.getDay()];
 
         const entry = monthlyOverheadsData[dateStr] || {};
-        const kitchen = entry.kitchen || 0;
-        const canteenAuto = monthlyCanteenDailyData[dateStr] || 0;
-        const others = entry.others || 0;
-        const payAdvance = entry.pay_advance || 0;
-        const income = entry.income || 0;
+        const kitchen = entry.kitchen != null ? entry.kitchen : 0;
+        
+        // Use stored canteen value if it exists, otherwise use auto-calculated one
+        const hasStoredCanteen = Object.prototype.hasOwnProperty.call(entry, 'canteen_auto');
+        const canteenValue = hasStoredCanteen ? entry.canteen_auto : (monthlyCanteenDailyData[dateStr] || 0);
+
+        const others = entry.others != null ? entry.others : 0;
+        const payAdvance = entry.pay_advance != null ? entry.pay_advance : 0;
+        const income = entry.income != null ? entry.income : 0;
         const employeeNames = entry.employee_names || '';
 
-        const rowExpense = kitchen + canteenAuto + others + payAdvance;
+        const rowExpense = kitchen + canteenValue + others + payAdvance;
         const dayProfit = income - rowExpense;
 
         totalKitchen += kitchen;
-        totalCanteen += canteenAuto;
+        totalCanteen += canteenValue;
         totalOthers += others;
         totalPayAdvance += payAdvance;
         totalExpense += rowExpense;
         totalIncome += income;
         totalProfit += dayProfit;
+
+        // Check if values were explicitly provided (even if zero) or are missing entirely
+        const hasKitchen = Object.prototype.hasOwnProperty.call(entry, 'kitchen');
+        const hasOthers = Object.prototype.hasOwnProperty.call(entry, 'others');
+        const hasPayAdvance = Object.prototype.hasOwnProperty.call(entry, 'pay_advance');
+        const hasIncome = Object.prototype.hasOwnProperty.call(entry, 'income');
 
         tableHTML += `
             <tr class="hover:bg-emerald-50 border-b">
@@ -4430,29 +4445,39 @@
                   contenteditable="true"
                   data-field="kitchen"
                   data-date="${dateStr}"
+                  onkeydown="handleInventoryEnter(event, this)"
                   onblur="saveMonthlyOverheadCell(this)"
-                  onfocus="selectAllText(this)">${kitchen || ''}</td>
-              <td class="px-3 py-2.5 text-right border-x border-gray-100 bg-gray-50/50 text-gray-700 font-semibold">${canteenAuto ? formatCurrency(canteenAuto) : ''}</td>
+                  onfocus="selectAllText(this)">${hasKitchen ? kitchen : ''}</td>
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50 font-semibold text-gray-700" 
+                  contenteditable="true"
+                  data-field="canteen_auto"
+                  data-date="${dateStr}"
+                  onkeydown="handleInventoryEnter(event, this)"
+                  onblur="saveMonthlyOverheadCell(this)"
+                  onfocus="selectAllText(this)">${hasStoredCanteen ? canteenValue : (canteenValue || '')}</td>
               <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="others"
                   data-date="${dateStr}"
+                  onkeydown="handleInventoryEnter(event, this)"
                   onblur="saveMonthlyOverheadCell(this)"
-                  onfocus="selectAllText(this)">${others || ''}</td>
+                  onfocus="selectAllText(this)">${hasOthers ? others : ''}</td>
               <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="pay_advance"
                   data-date="${dateStr}"
+                  onkeydown="handleInventoryEnter(event, this)"
                   onblur="saveMonthlyOverheadCell(this)"
-                  onfocus="selectAllText(this)">${payAdvance || ''}</td>
-              <td class="px-3 py-2.5 text-right border-x border-gray-100 bg-emerald-50/50 font-bold text-emerald-900">${rowExpense ? formatCurrency(rowExpense) : ''}</td>
+                  onfocus="selectAllText(this)">${hasPayAdvance ? payAdvance : ''}</td>
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 bg-emerald-50/50 font-bold text-emerald-900">${rowExpense ? formatCurrency(rowExpense) : formatCurrency(0)}</td>
               <td class="px-3 py-2.5 text-right border-x border-gray-100 cursor-pointer hover:bg-yellow-50" 
                   contenteditable="true"
                   data-field="income"
                   data-date="${dateStr}"
+                  onkeydown="handleInventoryEnter(event, this)"
                   onblur="saveMonthlyOverheadCell(this)"
-                  onfocus="selectAllText(this)">${income || ''}</td>
-              <td class="px-3 py-2.5 text-right border-x border-gray-100 font-bold ${dayProfit >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}">${dayProfit ? formatCurrency(dayProfit) : ''}</td>
+                  onfocus="selectAllText(this)">${hasIncome ? income : ''}</td>
+              <td class="px-3 py-2.5 text-right border-x border-gray-100 font-bold ${dayProfit >= 0 ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'}">${(hasIncome || hasKitchen || hasOthers || hasPayAdvance || canteenValue > 0) ? formatCurrency(dayProfit) : ''}</td>
               <td class="px-2 py-2.5 border-x border-gray-100 cursor-pointer hover:bg-yellow-50 relative text-gray-600 text-[10px] w-24" 
                   data-field="employee_names"
                   data-date="${dateStr}"
@@ -4572,24 +4597,44 @@
       selection.addRange(range);
     };
 
+    window.handleInventoryEnter = function (event, element) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        element.blur(); // Triggers saveMonthlyOverheadCell via onblur
+      }
+    };
+
+    let isSavingOverhead = false;
     window.saveMonthlyOverheadCell = async function (cell) {
+      if (isSavingOverhead) return;
+      
+      const row = cell.parentElement;
       const date = cell.dataset.date;
-      const field = cell.dataset.field;
-      const value = parseFloat(cell.textContent.trim()) || 0;
+      const cells = Array.from(row.querySelectorAll('td'));
+      
+      // Helper to parse currency/raw numbers from cells
+      const parseVal = (c) => {
+        if (!c) return 0;
+        const text = c.textContent.trim().replace(/[Rs\s,]/g, '');
+        const val = parseFloat(text);
+        return isNaN(val) ? 0 : val;
+      };
+
+      // Indices based on the table structure:
+      // 0:Day, 1:DayName, 2:Kitchen(E), 3:Canteen(E), 4:Others(E), 5:Pay/Advance(E), 6:Total, 7:Income(E), 8:Profit, 9:Employee(E)
+      const kitchen      = parseVal(cells[2]);
+      const canteenValue = parseVal(cells[3]); 
+      const others       = parseVal(cells[4]);
+      const payAdvance   = parseVal(cells[5]);
+      const income       = parseVal(cells[7]);
+      
+      // Employee names — read from cell[9]
+      const rawEmployee = cells[9] ? cells[9].textContent.trim() : '';
+      const employeeNames = (rawEmployee === 'Optional' || rawEmployee === '') ? '' : rawEmployee;
 
       const [year, month, day] = date.split('-').map(Number);
 
-      // Get current row values
-      const row = cell.parentElement;
-      const cells = Array.from(row.querySelectorAll('td'));
-
-      const kitchen = parseFloat(cells[2].textContent.trim()) || 0;
-      const others = parseFloat(cells[4].textContent.trim()) || 0;
-      const payAdvance = parseFloat(cells[5].textContent.trim()) || 0;
-      const employeeNames = cells[9].textContent.trim();
-      const income = parseFloat(cells[7].textContent.trim()) || 0;
-      const canteenAuto = monthlyCanteenDailyData[date] || 0;
-
+      isSavingOverhead = true;
       try {
         const res = await fetch('/api/overheads/entry', {
           method: 'POST',
@@ -4599,7 +4644,7 @@
             month,
             year,
             kitchen,
-            canteen_auto: canteenAuto,
+            canteen_auto: canteenValue,
             others,
             pay_advance: payAdvance,
             employee_names: employeeNames,
@@ -4608,14 +4653,26 @@
         });
 
         if (res.ok) {
-          // Reload table to update totals and profit
+          // Update local memory so it's consistent
+          if (typeof monthlyOverheadsData !== 'undefined') {
+            monthlyOverheadsData[date] = {
+              date, month, year, kitchen, others, income,
+              pay_advance: payAdvance,
+              canteen_auto: canteenValue,
+              employee_names: employeeNames,
+              total_expense: kitchen + canteenValue + others + payAdvance
+            };
+          }
+          // Reload table to refresh totals row and profit cards
           await loadMonthlyOverheadsTable();
         } else {
-          alert('Failed to save entry');
+          const errData = await res.json().catch(() => ({}));
+          console.error('[OVERHEADS] Save failed:', errData);
         }
       } catch (e) {
-        console.error('Error saving monthly overhead entry:', e);
-        alert('Failed to save entry');
+        console.error('[OVERHEADS] Error saving cell:', e);
+      } finally {
+        isSavingOverhead = false;
       }
     };
 
@@ -4714,7 +4771,8 @@
         const others = parseFloat(cells[4].textContent.trim()) || 0;
         const payAdvance = parseFloat(cells[5].textContent.trim()) || 0;
         const income = parseFloat(cells[7].textContent.trim()) || 0;
-        const canteenAuto = monthlyCanteenDailyData[date] || 0;
+        const entry = monthlyOverheadsData[date] || {};
+        const canteenValue = entry.hasOwnProperty('canteen_auto') ? entry.canteen_auto : (monthlyCanteenDailyData[date] || 0);
 
         try {
           const res = await fetch('/api/overheads/entry', {
@@ -4725,7 +4783,7 @@
               month,
               year,
               kitchen,
-              canteen_auto: canteenAuto,
+              canteen_auto: canteenValue,
               others,
               pay_advance: payAdvance,
               employee_names: selectedNames,
@@ -4766,7 +4824,8 @@
         const others = parseFloat(cells[4].textContent.trim()) || 0;
         const payAdvance = parseFloat(cells[5].textContent.trim()) || 0;
         const income = parseFloat(cells[7].textContent.trim()) || 0;
-        const canteenAuto = monthlyCanteenDailyData[date] || 0;
+        const entry = monthlyOverheadsData[date] || {};
+        const canteenValue = entry.hasOwnProperty('canteen_auto') ? entry.canteen_auto : (monthlyCanteenDailyData[date] || 0);
 
         try {
           const res = await fetch('/api/overheads/entry', {
@@ -4777,7 +4836,7 @@
               month,
               year,
               kitchen,
-              canteen_auto: canteenAuto,
+              canteen_auto: canteenValue,
               others,
               pay_advance: payAdvance,
               employee_names: '',
@@ -8153,7 +8212,7 @@
 
   <main class="flex-1 overflow-auto relative bg-gray-50 w-full flex flex-col">
     <!-- Global Header -->
-    <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-emerald-100 px-4 md:px-8 py-4 flex items-center justify-between no-print">
+    <header id="main-topbar" class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-emerald-100 px-4 md:px-8 py-4 flex items-center justify-between no-print">
       <div class="flex items-center gap-4">
         <button onclick="toggleSidebar()" 
           class="p-2 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition shadow-sm border border-emerald-100">

@@ -2308,9 +2308,9 @@ def get_inventory_stats(month, year):
 
         def parse_date(raw):
             if not raw: return None
-            if isinstance(raw, datetime): return raw
+            if isinstance(raw, datetime): return raw.replace(tzinfo=None)
             try:
-                return datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+                return datetime.fromisoformat(str(raw).replace('Z', '+00:00')).replace(tzinfo=None)
             except Exception:
                 try:
                     return datetime.strptime(str(raw)[:10], '%Y-%m-%d')
@@ -2333,7 +2333,15 @@ def get_inventory_stats(month, year):
                     discharged_count += 1
 
         canteen_result = list(mongo.db.canteen_sales.aggregate([
-            {'$match': {'date': {'$gte': month_start, '$lt': month_end}}},
+            {
+                '$match': {
+                    'date': {'$gte': month_start, '$lt': month_end},
+                    '$or': [
+                        {'entry_type': {'$exists': False}},
+                        {'entry_type': {'$ne': 'other'}}
+                    ]
+                }
+            },
             {'$group': {'_id': None, 'total': {'$sum': '$amount'}}}
         ]))
         total_canteen = canteen_result[0]['total'] if canteen_result else 0
@@ -2393,7 +2401,11 @@ def get_overheads(month, year):
                     'date': {
                         '$gte': start_date,
                         '$lt': end_date
-                    }
+                    },
+                    '$or': [
+                        {'entry_type': {'$exists': False}},
+                        {'entry_type': {'$ne': 'other'}}
+                    ]
                 }
             },
             {
@@ -2437,56 +2449,59 @@ def get_overheads_annual(year):
     """
     if not check_db(): return jsonify({"error": "Database error"}), 500
     try:
-        # Aggregate canteen sales for the entire year
-        start_date = datetime(year, 1, 1)
-        end_date = datetime(year + 1, 1, 1)
-        
-        canteen_aggregation = mongo.db.canteen_sales.aggregate([
+        # 1. Aggregate canteen sales day-by-day for the year
+        canteen_daily_aggr = mongo.db.canteen_sales.aggregate([
             {
                 '$match': {
-                    'date': {
-                        '$gte': start_date,
-                        '$lt': end_date
-                    }
+                    'date': {'$gte': start_date, '$lt': end_date},
+                    '$or': [
+                        {'entry_type': {'$exists': False}},
+                        {'entry_type': {'$ne': 'other'}}
+                    ]
                 }
             },
             {
                 '$group': {
-                    '_id': None,
-                    'total_canteen': {'$sum': '$amount'}
+                    '_id': {'$dateToString': {'format': '%Y-%m-%d', 'date': '$date'}},
+                    'total': {'$sum': '$amount'}
                 }
             }
         ])
+        canteen_daily_map = {item['_id']: item['total'] for item in canteen_daily_aggr}
         
-        canteen_result = list(canteen_aggregation)
-        total_canteen = canteen_result[0]['total_canteen'] if canteen_result else 0
-        
-        # Aggregate overhead entries
+        # 2. Fetch all overhead entries for the year
         entries = list(mongo.db.overheads.find({'year': year}))
+        overhead_map = {e.get('date'): e for e in entries if e.get('date')}
 
         total_income = 0.0
-        total_other_expense = 0.0
+        total_expense = 0.0
+        total_canteen = 0.0
 
-        for entry in entries:
-            income = float(entry.get('income', 0))
-            # Sum kitchen, others, pay_advance (excluding canteen_auto to avoid double-counting)
-            kitchen = float(entry.get('kitchen', 0))
-            others = float(entry.get('others', 0))
-            pay_advance = float(entry.get('pay_advance', 0))
+        # 3. Calculate totals day-by-day (or at least for all dates present in either map)
+        all_dates = set(canteen_daily_map.keys()) | set(overhead_map.keys())
+        
+        for d_str in all_dates:
+            entry = overhead_map.get(d_str, {})
+            # Use stored canteen_auto (override) if exists, else use raw sales
+            day_canteen = entry.get('canteen_auto') if entry.get('canteen_auto') is not None else canteen_daily_map.get(d_str, 0)
             
-            total_income += income
-            total_other_expense += (kitchen + others + pay_advance)
-
-        # Total expense = other expenses + canteen sales
-        total_expense = total_other_expense + total_canteen
-        profit = total_income - total_expense
+            day_kitchen = float(entry.get('kitchen', 0))
+            day_others = float(entry.get('others', 0))
+            day_pay_advance = float(entry.get('pay_advance', 0))
+            day_income = float(entry.get('income', 0))
+            
+            day_expense = day_kitchen + day_canteen + day_others + day_pay_advance
+            
+            total_income += day_income
+            total_expense += day_expense
+            total_canteen += day_canteen
 
         return jsonify({
             'year': year,
             'total_income': total_income,
             'total_expense': total_expense,
             'total_canteen': total_canteen,
-            'profit': profit
+            'profit': total_income - total_expense
         })
     except Exception as e:
         print(f"Get Annual Overheads Error: {e}")
