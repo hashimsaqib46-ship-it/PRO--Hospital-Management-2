@@ -1,1 +1,0 @@
-form yaler to krin
